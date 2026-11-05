@@ -353,7 +353,7 @@ textarea:focus-visible{outline:2px solid var(--s);outline-offset:2px}
      hint:"mg GFP pro g Biomasse und Stunde, auch ohne Wachstum."}
   ];
   var GNOTE = {
-    "Wachstum":"Die drei Kernparameter der Monod-Kinetik.",
+    "Wachstum":"Fertige Szenarien laden oder einzeln einstellen. Darunter die drei Kernparameter der Monod-Kinetik.",
     "Batch-Start":"Was zu Beginn im Reaktor ist.",
     "Fütterung":"Der Feed startet automatisch, sobald die Batch-Glukose verbraucht ist.",
     "Maßstab":"Vom Labor bis zur Produktion. Daraus werden kLa, Kühlleistung und Mischzeit berechnet.",
@@ -364,7 +364,9 @@ textarea:focus-visible{outline:2px solid var(--s);outline-offset:2px}
   var MODES=[["b","Nur Batch"],["c","Konstant"],["e","Exponentiell"]];
   var SCALES=[{name:"Labor 2 L",Vmax:2,PV:4,vvm:1},{name:"Pilot 200 L",Vmax:200,PV:2,vvm:0.8},{name:"Prod. 20 m³",Vmax:20000,PV:1.5,vvm:0.5}];
   // Voreinstellung nach dem BPT-Ablaufschema: Batch 4 L auf ca. 3 g/L, Feed µ=0,1, dann µ=0,2 mit Teilinduktion
+  var presetBtns=[];
   var BPT={mumax:0.5,Ks:0.05,Yxs:0.3,X0:0.05,S0:11,V0:4,tEnd:32,SF:400,mus:0.1,mus2:0.2,Vmax:10,PV:4,vvm:1,tind:25,alpha:30,beta:0,yO2:21,Yxo:1,mucrit:0.35,Ki:3};
+  var PRESETS=[{name:"Standard-Szenario",vals:{}},{name:"BPT-Laborversuch",vals:BPT}];
   var scaleBtns=[], DEFBY0={};
   var mode="e";
   var p = {grad:1}; DEF.forEach(function(d){ p[d.id]=d.val; DEFBY0[d.id]=d; });
@@ -385,11 +387,17 @@ textarea:focus-visible{outline:2px solid var(--s);outline-offset:2px}
       box=document.createElement("div"); box.className="group";
       box.innerHTML='<h2>'+d.g+'</h2><p class="gnote">'+GNOTE[d.g]+'</p>';
       if(d.g==="Wachstum"){
-        var pb=document.createElement("button"); pb.type="button"; pb.className="btn ghost"; pb.style.width="100%"; pb.style.marginBottom="8px";
-        pb.textContent="Voreinstellung: BPT-Laborversuch";
-        pb.onclick=function(){ mode="e"; p.grad=1; Object.keys(BPT).forEach(function(k){ p[k]=BPT[k]; inputs[k].value=toSlider(DEFBY0[k],BPT[k]); });
-          syncMode(); cur=null; update(); };
-        box.appendChild(pb);
+        var ps=document.createElement("div"); ps.className="seg"; ps.style.gridTemplateColumns="1fr 1fr"; ps.style.marginBottom="8px";
+        ps.setAttribute("role","group"); ps.setAttribute("aria-label","Szenario");
+        PRESETS.forEach(function(pr){
+          var b=document.createElement("button"); b.type="button"; b.textContent=pr.name;
+          b.onclick=function(){ mode="e"; p.grad=1;
+            DEF.forEach(function(dd){ var v = pr.vals[dd.id]!==undefined ? pr.vals[dd.id] : dd.val;
+              p[dd.id]=v; inputs[dd.id].value=toSlider(dd,v); });
+            syncMode(); cur=null; update(); };
+          ps.appendChild(b); presetBtns.push({b:b,pr:pr});
+        });
+        box.appendChild(ps);
       }
       if(d.g==="Maßstab"){
         var sg=document.createElement("div"); sg.className="seg"; sg.setAttribute("role","group"); sg.setAttribute("aria-label","Maßstab wählen");
@@ -436,7 +444,9 @@ textarea:focus-visible{outline:2px solid var(--s);outline-offset:2px}
     syncGrad();
   }
   function showVals(){ DEF.forEach(function(d){ outs[d.id].textContent=fmt(p[d.id],d.dec)+" "+d.unit; });
-    scaleBtns.forEach(function(o){ var on=Math.abs(p.Vmax-o.sc.Vmax)<1e-6&&Math.abs(p.PV-o.sc.PV)<1e-6&&Math.abs(p.vvm-o.sc.vvm)<1e-6; o.b.setAttribute("aria-pressed",String(on)); }); }
+    scaleBtns.forEach(function(o){ var on=Math.abs(p.Vmax-o.sc.Vmax)<1e-6&&Math.abs(p.PV-o.sc.PV)<1e-6&&Math.abs(p.vvm-o.sc.vvm)<1e-6; o.b.setAttribute("aria-pressed",String(on)); });
+    presetBtns.forEach(function(o){ var on=DEF.every(function(dd){ var v=o.pr.vals[dd.id]!==undefined?o.pr.vals[dd.id]:dd.val; return Math.abs(p[dd.id]-v)<1e-9; });
+      o.b.setAttribute("aria-pressed",String(on)); }); }
 
   // ---------- Simulation ----------
   // Zustand: X [g/L], S [g/L], A Acetat [g/L], P GFP [mg/L], V [L]; F in L/h; Sauerstoff in mmol/(L·h)
@@ -1055,7 +1065,7 @@ textarea:focus-visible{outline:2px solid var(--s);outline-offset:2px}
   document.getElementById("refClear").onclick=function(){ ref=null; this.hidden=true; document.getElementById("refBtn").textContent="Als Referenz merken"; draw(); };
   document.getElementById("logBtn").onclick=function(){ logX=!logX; this.setAttribute("aria-pressed",String(logX));
     this.textContent=logX?"Lineare Achse":"Log-Achse"; draw(); };
-  document.getElementById("resetBtn").onclick=function(){ SS.forEach(function(d){ d.reset(); }); DEF.forEach(function(d){ p[d.id]=d.val; inputs[d.id].value=toSlider(d,d.val); }); p.grad=1; mode="e"; syncMode(); cur=null; update(); };
+  document.getElementById("resetBtn").onclick=function(){ SS.forEach(function(d){ d.reset(); }); DEF.forEach(function(d){ p[d.id]=d.val; inputs[d.id].value=toSlider(d,d.val); }); p.grad=1; p.qex=1; mode="e"; syncMode(); cur=null; update(); };
   window.addEventListener("resize",draw);
   if(window.matchMedia) matchMedia("(prefers-color-scheme: dark)").addEventListener("change",draw);
   new MutationObserver(draw).observe(document.documentElement,{attributes:true,attributeFilter:["data-theme"]});
