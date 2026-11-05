@@ -2,7 +2,7 @@
 
 Interaktiver Simulator für die Fed-Batch-Fermentation von rekombinantem *E. coli* zur Produktion eines Modellproteins (GFP). Läuft als einzelne HTML-Datei im Browser, ohne Installation.
 
-**→ [Simulator öffnen](https://DEIN-NUTZERNAME.github.io/fermentations-simulator/)**
+**→ [Simulator öffnen](https://severinbloessl.github.io/fermentations-simulator/)**
 
 Lernprojekt: Alle kinetischen Parameter sind Literaturschätzungen für *E. coli* auf Glukose, keine an einem Stamm gemessenen Werte.
 
