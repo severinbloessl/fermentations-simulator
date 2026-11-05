@@ -1,0 +1,1069 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Fermentations-Simulator – E. coli mit GFP</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#EDF2EF; --surface:#FFFFFF; --ink:#13302B; --muted:#58706A; --line:#D2DED8;
+  --x:#B7791F; --s:#2C6CB0; --p:#3E9B4F; --mu:#7A5BB5; --v:#2F7E86; --f:#C2554B; --a:#B23A7A; --grid:#E3EBE7;
+  color-scheme:light;
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px); padding-bottom:env(safe-area-inset-bottom,0px);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#0E1C19; --surface:#152723; --ink:#E3EEEA; --muted:#94ABA4; --line:#2A403B;
+    --x:#E3A645; --s:#6CA8EA; --p:#6FD07F; --mu:#B39BF0; --v:#5EC2CC; --f:#F08A80; --a:#EE86BE; --grid:#1F3430;
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0E1C19; --surface:#152723; --ink:#E3EEEA; --muted:#94ABA4; --line:#2A403B;
+  --x:#E3A645; --s:#6CA8EA; --p:#6FD07F; --mu:#B39BF0; --v:#5EC2CC; --f:#F08A80; --a:#EE86BE; --grid:#1F3430;
+  color-scheme:dark;
+}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*,*::before,*::after{box-sizing:inherit}
+body{margin:0;background:var(--bg);color:var(--ink);
+  font-family:"Atkinson Hyperlegible",system-ui,-apple-system,"Segoe UI",sans-serif;font-size:16px;line-height:1.5}
+h1,h2,h3{font-family:"Bricolage Grotesque","Atkinson Hyperlegible",system-ui,sans-serif;margin:0;line-height:1.15}
+.wrap{max-width:1180px;margin:0 auto;padding:20px 16px 48px}
+header{padding:8px 0 18px}
+h1{font-size:clamp(28px,7vw,44px);font-weight:800;letter-spacing:-.02em}
+.sub{color:var(--muted);margin:6px 0 0;max-width:62ch}
+.layout{display:grid;gap:16px}
+@media (min-width:900px){
+  .layout{grid-template-columns:minmax(300px,380px) 1fr;align-items:start}
+  .plots{order:2}
+  .controls{order:1}
+}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:14px}
+.plots .panel + .panel{margin-top:12px}
+.legend{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:8px}
+.chip{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);background:transparent;color:var(--ink);
+  border-radius:999px;padding:5px 11px;font:inherit;font-size:14px;cursor:pointer}
+.chip .dot{width:10px;height:10px;border-radius:50%}
+.chip[aria-pressed="false"]{opacity:.45}
+.chip:focus-visible,button:focus-visible,input:focus-visible,summary:focus-visible{outline:2px solid var(--s);outline-offset:2px}
+canvas{display:block;width:100%;touch-action:pan-y}
+#main{height:300px}
+#mu,#vol{height:140px}
+#o2{height:170px}
+#soft{height:220px}
+.sgrid{display:grid;gap:0 16px}
+@media (min-width:560px){.sgrid{grid-template-columns:1fr 1fr}}
+@media (min-width:900px){#main{height:380px}}
+.ctitle{font-size:16px;margin-bottom:6px}
+.ctitle span{font-family:"Atkinson Hyperlegible",system-ui,sans-serif;font-weight:400;font-size:14px;color:var(--muted)}
+.readout{font-size:14px;color:var(--muted);min-height:1.5em;margin-top:6px}
+.readout b{color:var(--ink);font-weight:700}
+.toolbar{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+.btn{font:inherit;font-size:15px;border-radius:10px;padding:8px 14px;border:1px solid var(--ink);background:var(--ink);color:var(--surface);cursor:pointer}
+.btn.ghost{background:transparent;color:var(--ink);border-color:var(--line)}
+.warn{margin-top:10px;padding:8px 12px;border-radius:10px;border-left:4px solid var(--f);background:var(--bg);font-size:14px}
+.warn:empty{display:none}
+.stats{display:grid;grid-template-columns:repeat(2,1fr);gap:10px 16px;margin-top:4px}
+@media (min-width:560px){.stats{grid-template-columns:repeat(3,1fr)}}
+.stat .v{font-family:"Bricolage Grotesque",system-ui,sans-serif;font-size:22px;font-weight:600;font-variant-numeric:tabular-nums}
+.stat .k{font-size:13px;color:var(--muted)}
+.group{margin-bottom:12px}
+.group[hidden]{display:none}
+.group h2{font-size:18px;font-weight:600;margin-bottom:4px}
+.group .gnote{font-size:14px;color:var(--muted);margin:0 0 6px}
+.seg{display:grid;grid-template-columns:repeat(3,1fr);border:1px solid var(--line);border-radius:10px;overflow:hidden;margin:6px 0 4px}
+.seg button{font:inherit;font-size:15px;padding:9px 4px;border:0;background:transparent;color:var(--ink);cursor:pointer}
+.seg button + button{border-left:1px solid var(--line)}
+.seg button[aria-pressed="true"]{background:var(--ink);color:var(--surface);font-weight:700}
+.param{padding:10px 0;border-top:1px solid var(--line)}
+.param[hidden]{display:none}
+.prow{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+.pname{font-weight:700}
+.pval{font-variant-numeric:tabular-nums;white-space:nowrap}
+.hint{font-size:13px;color:var(--muted);margin-top:2px}
+input[type=range]{width:100%;margin:8px 0 2px;accent-color:var(--ink);height:28px}
+details{border-top:1px solid var(--line);padding:10px 0}
+details:first-child{border-top:0}
+summary{cursor:pointer;font-weight:700;font-family:"Bricolage Grotesque",system-ui,sans-serif;font-size:18px}
+.eq{font-family:"Cambria Math","STIX Two Math",Georgia,serif;font-size:17px;background:var(--bg);border-radius:8px;padding:8px 10px;margin:8px 0;overflow-x:auto;white-space:nowrap}
+.learn p,.learn li{max-width:68ch}
+.learn h3{font-size:16px;margin:14px 0 2px}
+.learn ol{padding-left:20px}
+.learn li{margin-bottom:10px}
+.foot{font-size:13px;color:var(--muted);margin-top:20px}
+textarea{width:100%;min-height:150px;font:14px/1.4 ui-monospace,"SF Mono",Menlo,Consolas,monospace;color:var(--ink);background:var(--bg);
+  border:1px solid var(--line);border-radius:10px;padding:8px 10px;resize:vertical}
+textarea:focus-visible{outline:2px solid var(--s);outline-offset:2px}
+.status{font-size:14px;color:var(--muted);margin-top:6px}
+.checks{display:grid;grid-template-columns:repeat(2,1fr);gap:4px 12px;margin:8px 0}
+.checks label{display:flex;align-items:center;gap:8px;font-size:15px;min-height:32px}
+.checks input{width:20px;height:20px;accent-color:var(--ink)}
+.tbl{overflow-x:auto;margin-top:10px}
+.tbl table{border-collapse:collapse;font-size:14px;font-variant-numeric:tabular-nums;min-width:100%}
+.tbl th,.tbl td{text-align:right;padding:5px 8px;border-bottom:1px solid var(--line);white-space:nowrap}
+.tbl th:first-child,.tbl td:first-child{text-align:left}
+.tbl th{font-weight:700;color:var(--muted)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Fermentations-Simulator</h1>
+    <p class="sub">Fed-Batch-Fermentation von <i>E. coli</i> HMS174(DE3) mit pET11a-GFP auf Glukose: Monod-Kinetik, Sauerstoff- und Wärmebilanz, Acetatbildung, Scale-up vom Labor zum Produktionstank, Parameter-Anpassung an Messdaten und ein Softsensor mit Kalman-Filter. Lernprojekt: Alle Parameter sind Literaturschätzungen, keine validierten Messwerte.</p>
+  </header>
+
+  <div class="layout">
+    <section class="plots" aria-label="Ergebnisse">
+      <div class="panel">
+        <div class="legend" id="legend"></div>
+        <canvas id="main" aria-label="Verlauf von Biomasse, Glukose, Acetat und GFP über die Zeit"></canvas>
+        <div class="readout" id="readout">Tippe ins Diagramm, um Werte abzulesen.</div>
+        <div class="warn" id="warn"></div>
+        <div class="toolbar">
+          <button class="btn" id="refBtn">Als Referenz merken</button>
+          <button class="btn ghost" id="refClear" hidden>Referenz löschen</button>
+          <button class="btn ghost" id="logBtn" aria-pressed="false">Log-Achse</button>
+          <button class="btn ghost" id="resetBtn">Standardwerte</button>
+        </div>
+      </div>
+      <div class="panel">
+        <h3 class="ctitle">Wachstumsrate µ in h⁻¹ <span id="muNote"></span></h3>
+        <canvas id="mu" aria-label="Verlauf der Wachstumsrate"></canvas>
+      </div>
+      <div class="panel">
+        <h3 class="ctitle">Sauerstoff und Wärme <span>Bedarf OUR (rot), max. O₂-Lieferung OTR (gestrichelt), Kühlgrenze (ocker gepunktet, erscheint bei großem Maßstab), alles in mmol O₂/(L·h); pO₂ in % (türkis, rechts)</span></h3>
+        <canvas id="o2" aria-label="Sauerstoffbedarf, maximale Sauerstoffübertragung und Gelöstsauerstoff"></canvas>
+      </div>
+      <div class="panel" id="softPanel">
+        <h3 class="ctitle">Softsensor: Biomasse aus dem Abgas <span>wahr (ocker), nur Abgas (rot gestrichelt), Kalman mit Proben (türkis, Band = Unsicherheit), Proben (Kreise)</span></h3>
+        <canvas id="soft" aria-label="Biomasse: wahrer Verlauf, Softsensor ohne und mit Korrektur durch Proben"></canvas>
+        <div class="stats" id="softStats" style="margin-top:10px"></div>
+        <div class="sgrid" id="softCtl"></div>
+      </div>
+      <div class="panel" id="volPanel">
+        <h3 class="ctitle">Volumen in L <span>und Zulauf F in mL/h (rot)</span></h3>
+        <canvas id="vol" aria-label="Verlauf von Volumen und Zulaufrate"></canvas>
+      </div>
+      <div class="panel">
+        <div class="stats" id="stats"></div>
+      </div>
+      <div class="panel" id="dataPanel">
+        <h3 class="ctitle">Messdaten und Parameter-Anpassung</h3>
+        <p class="status" style="margin-top:0">Eine Zeile pro Probe: Zeit in h, Biomasse in g/L, Glukose in g/L, Acetat in g/L, GFP in mg/L. Leere Felder sind erlaubt. Komma oder Punkt als Dezimalzeichen, Spalten mit Semikolon oder Tab getrennt, also direkt aus Excel kopierbar.</p>
+        <textarea id="dataIn" spellcheck="false" aria-label="Messdaten" placeholder="t;X;S;Acetat;GFP&#10;0;0,10;10,0;0;0&#10;2;0,30;9,4;0,15;"></textarea>
+        <div class="toolbar">
+          <button class="btn ghost" id="exBtn">Beispieldaten laden</button>
+          <button class="btn" id="parseBtn">Daten anzeigen</button>
+          <button class="btn ghost" id="clearData">Daten löschen</button>
+        </div>
+        <div class="status" id="dataStatus"></div>
+        <div id="fitBox" hidden>
+          <p class="status">Welche Parameter sollen angepasst werden? Die Prozesseinstellungen (Feed, Volumen, IPTG-Zeitpunkt) müssen wie im Versuch eingestellt sein.</p>
+          <div class="checks" id="fitChecks"></div>
+          <div class="toolbar">
+            <button class="btn" id="fitBtn">Parameter anpassen</button>
+            <button class="btn ghost" id="trueBtn" hidden>Wahre Werte zeigen</button>
+          </div>
+          <div class="status" id="fitStatus"></div>
+          <div class="tbl" id="fitTable"></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="controls" aria-label="Parameter">
+      <div class="panel" id="controls"></div>
+      <div class="panel learn" style="margin-top:12px">
+        <details>
+          <summary>Das Modell</summary>
+          <h3>Batch</h3>
+          <div class="eq">µ = µ<sub>max</sub> · S / (K<sub>s</sub> + S)</div>
+          <p>Monod-Kinetik: Bei viel Glukose ist µ ≈ µ<sub>max</sub>, bei S = K<sub>s</sub> genau µ<sub>max</sub>/2.</p>
+          <h3>Fed-Batch: Bilanzen mit Zulauf</h3>
+          <p>Der Zulauf F vergrößert das Volumen und verdünnt alles im Reaktor. Die Verdünnungsrate ist D = F/V.</p>
+          <div class="eq">dV/dt = F</div>
+          <div class="eq">dX/dt = µ · X − D · X</div>
+          <div class="eq">dS/dt = −µ · X / Y<sub>X/S</sub> + D · (S<sub>F</sub> − S)</div>
+          <div class="eq">dGFP/dt = (α · µ + β) · X − D · GFP &nbsp; (erst ab IPTG)</div>
+          <h3>Sauerstoff</h3>
+          <p>Bedarf der Zellen (Oxygen Uptake Rate):</p>
+          <div class="eq">OUR = µ · X / Y<sub>X/O</sub></div>
+          <p>Maximale Lieferung des Reaktors (Oxygen Transfer Rate). C* ist die Sauerstoffsättigung im Medium, bei 37 °C mit Luft nur ca. 0,21 mmol/L:</p>
+          <div class="eq">OTR<sub>max</sub> = k<sub>L</sub>a · C*</div>
+          <p>Gelöstsauerstoff stellt sich in Sekunden ein, deshalb gilt näherungsweise:</p>
+          <div class="eq">pO<sub>2</sub> = (1 − OUR / OTR<sub>max</sub>) · 100 %</div>
+          <p>Wollen die Zellen mehr veratmen als OTR<sub>max</sub> erlaubt, wird die Atmung gedeckelt, und die überschüssige Glukose wird zu Acetat.</p>
+          <h3>Overflow-Metabolismus (Acetat)</h3>
+          <p>Glukose-Aufnahme, gebremst durch Acetat A:</p>
+          <div class="eq">q<sub>S</sub> = (µ<sub>max</sub> / Y<sub>X/S</sub>) · S / (K<sub>s</sub> + S) · 1 / (1 + A / K<sub>i</sub>)</div>
+          <p>Die Atmung bekommt höchstens die Kapazität q<sub>S,krit</sub> = µ<sub>krit</sub> / Y<sub>X/S</sub>, und nur so viel, wie der Sauerstoff erlaubt. Der Rest läuft über:</p>
+          <div class="eq">q<sub>S,Overflow</sub> = q<sub>S</sub> − q<sub>S,Atmung</sub> &nbsp;→&nbsp; Acetat (0,5 g/g)</div>
+          <p>Hat die Atmung freie Kapazität und ist Sauerstoff übrig, wird Acetat wieder verbraucht (max. 0,2 g pro g Biomasse und h). Wachstum setzt sich zusammen aus Atmung (volle Ausbeute), Overflow (40 % der Ausbeute) und Acetatverbrauch (0,3 g/g).</p>
+          <h3>Exponentielle Fütterung</h3>
+          <p>So viel zufüttern, wie die Zellen bei µ<sub>set</sub> verbrauchen. X<sub>F</sub> und V<sub>F</sub> sind Biomasse und Volumen beim Feed-Start:</p>
+          <div class="eq">F(t) = µ<sub>set</sub> · X<sub>F</sub> · V<sub>F</sub> / (Y<sub>X/S</sub> · S<sub>F</sub>) · e<sup>µ<sub>set</sub> · (t − t<sub>F</sub>)</sup></div>
+          <h3>Voreinstellung „BPT-Laborversuch“</h3>
+          <p>Setzt den Simulator auf den Ablauf aus den Kursunterlagen: Batch mit 4 L auf etwa 3 g/L Biomasse, dann exponentieller Feed mit µ = 0,1 h⁻¹ über zwei Generationen, danach Umstellung auf µ = 0,2 h⁻¹ zusammen mit der Teilinduktion (2,3 µmol IPTG), Gesamtvolumen 10 L, Ende nach zwei weiteren Generationen. Zeit 0 ist das Animpfen der Batch-Kultur. Die Kinetik-Parameter sind weiterhin Literaturschätzungen, keine Messwerte eures Stammes.</p>
+          <h3>Scale-up</h3>
+          <p>Geometrie: Rührkessel mit Höhe/Durchmesser 1,5. Daraus Gasleerrohrgeschwindigkeit v<sub>s</sub> und kLa nach van ’t Riet (nicht-koaleszierendes Medium, P/V in W/m³, v<sub>s</sub> in m/s, Ergebnis in s⁻¹):</p>
+          <div class="eq">k<sub>L</sub>a = 0,002 · (P/V)<sup>0,7</sup> · v<sub>s</sub><sup>0,2</sup></div>
+          <p>Die Flüssigkeitssäule erhöht den mittleren Druck und damit C*. Wärme: 460 kJ pro mol veratmetem O₂ plus Rührleistung, abgeführt über den Kühlmantel (U = 500 W/(m²·K), ΔT = 22 K):</p>
+          <div class="eq">Q<sub>Kühlung</sub> = U · A · ΔT &nbsp;&nbsp; Q<sub>Zellen</sub> = 460 kJ/mol · OUR</div>
+          <p>Mischzeit grob nach Nienow, verglichen mit der Zeit, bis die Glukose im Fed-Batch verbraucht ist:</p>
+          <div class="eq">t<sub>Misch</sub> ≈ 5,9 · ε<sup>−1/3</sup> · D<sup>2/3</sup> · Korrektur &nbsp;&nbsp; τ<sub>S</sub> = S / (q<sub>S</sub> · X)</div>
+          <p>Sauerstoff im Gas: Beim Aufsteigen geben die Blasen O₂ ab. Gerechnet wird mit dem mittleren Gehalt zwischen Zu- und Abluft (N<sub>Gas</sub> = Gasstrom in mol/h):</p>
+          <div class="eq">OTR = k<sub>L</sub>a · C* · (y<sub>ein</sub> − ½ · OTR · V / N<sub>Gas</sub>) / 0,21</div>
+          <p>Zwei-Zonen-Modell: Der Feed tropft in eine Zulaufzone (5 % des Volumens). Sie tauscht mit dem Rest des Tanks Kultur aus, standardmäßig etwa ein Tankvolumen pro Mischzeit. Jede Zone hat ihre eigene Glukose S<sub>Z</sub> bzw. S<sub>R</sub>; Biomasse und Acetat gelten als gleichmäßig verteilt, weil sie sich viel langsamer ändern:</p>
+          <div class="eq">dS<sub>Z</sub>/dt = F·S<sub>F</sub>/(φV) + Q/(φV)·(S<sub>R</sub> − S<sub>Z</sub>) − q<sub>S</sub>(S<sub>Z</sub>)·X</div>
+          <div class="eq">dS<sub>R</sub>/dt = Q/((1−φ)V)·(S<sub>Z</sub> − S<sub>R</sub>) − q<sub>S</sub>(S<sub>R</sub>)·X</div>
+          <p>Die Zellen jeder Zone haben ihren eigenen Stoffwechsel mit Atmung und Overflow. Beide Gleichungen werden gemeinsam halb-implizit gelöst. Der Austausch Q ist die große Unbekannte; in der Industrie bestimmt man ihn mit Scale-down-Versuchen oder Strömungssimulation (CFD).</p>
+          <p>Ist t<sub>Misch</sub> größer als τ<sub>S</sub>, ist der Reaktor nicht mehr ideal durchmischt. Alle Korrelationen sind Abschätzungen; echte Kessel haben z. B. mehrere Rührer und Kühlschlangen.</p>
+          <h3>Softsensor</h3>
+          <p>Online gemessen werden nur der Sauerstoffverbrauch OUR (Abgasanalysator) sowie Zulauf und Volumen. Daraus wird die Biomasse hochgerechnet:</p>
+          <div class="eq">dX/dt = Y<sub>X/O</sub> · OUR · 32/1000 − D · X</div>
+          <p>Der Kalman-Filter führt eine Unsicherheit P mit. Sie wächst zwischen den Proben. Bei jeder Probe wird gewichtet korrigiert, mit R = Messunsicherheit der Probe:</p>
+          <div class="eq">K = P / (P + R) &nbsp;&nbsp; X ← X + K · (Probe − X)</div>
+          <p>Ist die Rechnung unsicher (großes P), vertraut der Filter der Probe (K nahe 1). Ist die Probe ungenau (großes R), vertraut er der Rechnung (K nahe 0).</p>
+          <h3>Parameter-Anpassung</h3>
+          <p>Gesucht sind die Parameter, bei denen die Simulation am besten zu den Messpunkten passt. Jede Abweichung wird durch den größten Messwert der jeweiligen Größe geteilt, damit g/L und mg/L vergleichbar sind:</p>
+          <div class="eq">Fehler = Σ ((Simulation − Messung) / Maximum)²</div>
+          <p>Den kleinsten Fehler sucht der Nelder-Mead-Algorithmus: Ein „Dreieck“ aus Parametersätzen kippelt Schritt für Schritt bergab durch die Fehlerlandschaft. Gesucht wird in logarithmischen Koordinaten, damit alle Werte positiv bleiben.</p>
+          <p>Gelöst wird numerisch in Schritten von 0,002 h. Die Glukose wird dabei halb-implizit berechnet, weil sie bei viel Biomasse extrem schnell reagiert (ein „steifes“ System).</p>
+        </details>
+        <details>
+          <summary>Experimente: euer BPT-Versuch</summary>
+          <ol>
+            <li><b>Zwei Generationen nachrechnen:</b> Nach der Voreinstellung läuft der Feed mit µ = 0,1 h⁻¹. Wie lange dauern zwei Generationen? Rechne t = 2 · ln2 / µ und prüfe im Diagramm, ob sich die Biomasse (in Gramm, nicht g/L) bis zur Induktion vervierfacht hat.</li>
+            <li><b>Warum µ erhöhen und gleichzeitig induzieren?</b> Setze µ_set nach der Induktion zurück auf 0,1 h⁻¹. Wie ändern sich Biomasse und GFP am Ende?</li>
+            <li><b>Teilinduktion:</b> Im Versuch wird bewusst nur teilweise induziert. Senke α auf 10 mg/g und vergleiche. Welchen Vorteil hätte das, den dieses Modell gar nicht zeigt? Tipp: Plasmidlast, Faltung, Wachstumsbremse.</li>
+            <li><b>Ohne Sauerstoff kein Leuchten:</b> GFP braucht Sauerstoff, um seinen Fluorophor auszubilden. Was würde eine O₂-Limitierung für eure Fluoreszenzmesswerte bedeuten, obwohl das Protein längst gebildet ist?</li>
+          </ol>
+        </details>
+        <details>
+          <summary>Experimente: Scale-up</summary>
+          <ol>
+            <li><b>Gleiches Rezept, drei Größen:</b> Wähle „Labor 2 L“, merke als Referenz, dann „Pilot 200 L“ und „Prod. 20 m³“. Welche Warnung kommt dazu? Und warum liefert der große Tank sogar mehr Sauerstoff als das Labor? Tipp: Druck der Flüssigkeitssäule und Gasgeschwindigkeit.</li>
+            <li><b>Sauerstoff kann man kaufen, Kühlfläche nicht:</b> Setze in der Produktion µ_set auf 0,25 h⁻¹. Der Sauerstoff wird knapp. Reichere dann die Zuluft auf 40 % O₂ an. Die O₂-Grenze rückt nach hinten, aber welches neue Problem taucht auf, und warum?</li>
+            <li><b>Der Rührer-Zielkonflikt:</b> Erhöhe in der Produktion P/V. kLa und Mischung werden besser, aber was passiert mit der Kühlgrenze? Warum?</li>
+            <li><b>Gradienten sichtbar machen:</b> Wähle „Prod. 20 m³“, setze µ_set auf 0,3 h⁻¹ und O₂ auf 100 %. Vergleiche die Glukose in der Zulaufzone mit der im Rest (Kennzahlen). Schalte das Zwei-Zonen-Modell aus und an: Wie stark ändern sich Biomasse und GFP wirklich?</li>
+            <li><b>Die große Unbekannte:</b> Senke dann den Austausch auf 0,1 oder 0,05. Die Glukose in der Zulaufzone steigt stark. Warum bleibt der Effekt auf die Biomasse trotzdem klein? Welche realen Effekte fehlen dem Modell vermutlich? Tipp: Stressreaktion, lokaler Sauerstoffmangel in der Zulaufzone.</li>
+          </ol>
+        </details>
+        <details>
+          <summary>Experimente: Softsensor</summary>
+          <ol>
+            <li><b>Rauschen ist harmlos:</b> Setze das Rauschen auf 20 %. Warum bleibt die Schätzung trotzdem fast perfekt? Tipp: Was passiert mit zufälligen Fehlern, wenn man über viele Messwerte aufsummiert?</li>
+            <li><b>Kalibrierfehler ist gefährlich:</b> Setze den Kalibrierfehler auf +10 % und die Proben auf „keine“. Wie entwickelt sich der Fehler? Schalte dann Proben alle 4 h ein und beobachte das Unsicherheitsband.</li>
+            <li><b>Wo der Softsensor blind ist:</b> Schau dir die rote Kurve im Batch genau an. Sie liegt unter der wahren Biomasse, obwohl alles perfekt kalibriert ist. Warum? Tipp: Overflow. Senke danach µ_krit auf 0,15 und vergleiche.</li>
+            <li><b>Wie oft Proben ziehen?</b> Probiere 1 h, 4 h und 12 h. Ab wann lohnt sich eine Probe kaum noch? Denk an Aufwand und Kontaminationsrisiko.</li>
+          </ol>
+        </details>
+        <details>
+          <summary>Experimente: Messdaten und Parameter-Anpassung</summary>
+          <ol>
+            <li><b>Detektivarbeit:</b> Lade die Beispieldaten und schau, wie schlecht die Standardwerte passen. Lass dann anpassen und vergleiche mit „Wahre Werte zeigen“. Wie nah kommt der Fit?</li>
+            <li><b>Ks ist schwer zu sehen:</b> Nimm Ks mit in die Anpassung und vergleiche mit dem wahren Wert. Warum liegt Ks viel weiter daneben als die anderen Parameter? Tipp: Wie viele Messpunkte liegen bei Glukose nahe Ks?</li>
+            <li><b>Gute Kurve, falsche Werte:</b> Lösch im Textfeld alle Acetat-Werte (Spalte leer lassen), drück „Standardwerte“, lies neu ein und passe an. Die Kurven passen trotzdem super, aber stimmen µmax und µ_krit noch? Was heißt das für eure Analytik im Labor?</li>
+            <li><b>Für Dezember:</b> Biomasse aus der Biotrockenmasse in g/L, Glukose und eventuell Acetat aus der HPLC, GFP in mg/L aus Fluoreszenz oder ELISA. Notiert auch Feed-Start, Feed-Rate und IPTG-Zeitpunkt.</li>
+          </ol>
+        </details>
+        <details>
+          <summary>Experimente: Acetat und Overflow</summary>
+          <ol>
+            <li><b>Acetat im Batch:</b> Schalte auf „Nur Batch“. Schon beim normalen Batch entsteht Acetat, weil µmax über µ_krit liegt. Was passiert mit dem Acetat, wenn die Glukose aufgebraucht ist?</li>
+            <li><b>Die Acetat-Schwelle:</b> Erhöhe im exponentiellen Fed-Batch µ_set langsam über µ_krit. Wie verändern sich Acetat, Biomasse und GFP-Titer (mg/L)? Wo liegt das Optimum? Tipp: Setze vorher O₂ auf 100 % und Vmax auf 20 L, damit nur das Acetat begrenzt.</li>
+            <li><b>Sauerstoffmangel macht Acetat:</b> Senke die Rührleistung P/V auf 0,3 kW/m³. Ab dem O₂-Limit steigt Acetat, obwohl µ_set unter µ_krit liegt. Warum?</li>
+            <li><b>BL21 statt K-12:</b> Setze µ_krit auf 0,6 h⁻¹ (Stamm mit wenig Acetat). Warum ist BL21 in der Industrie so beliebt?</li>
+          </ol>
+        </details>
+        <details>
+          <summary>Experimente: Fed-Batch und Sauerstoff</summary>
+          <ol>
+            <li><b>Konstant gegen exponentiell:</b> Merke die exponentielle Fütterung als Referenz und schalte auf „Konstant“. Schau dir das µ-Diagramm an: Warum fällt µ bei konstantem Zulauf ständig ab, obwohl immer gleich viel Glukose kommt?</li>
+            <li><b>Überfüttern:</b> Erhöhe µ<sub>set</sub> Schritt für Schritt bis nahe an µ<sub>max</sub>. Ab wann bleibt Glukose im Reaktor liegen? Dann bildet E. coli Acetat.</li>
+            <li><b>Wann induzieren?</b> Verschiebe den IPTG-Zeitpunkt. Im Modell bringt frühes Induzieren immer mehr GFP. Überleg dir, warum man es in der Praxis trotzdem erst spät macht. Tipp: Plasmidlast, Wachstumsbremse, Inclusion Bodies.</li>
+            <li><b>Reaktor voll:</b> Senke das maximale Volumen. Was passiert mit µ, sobald der Feed stoppt?</li>
+            <li><b>Wo liegt die Grenze?</b> Mit den Standardwerten reicht der Sauerstoff im Labor. Senke P/V auf 2 kW/m³: Ab welcher Biomasse wird es knapp? Rechne nach: X<sub>krit</sub> = OTR<sub>max</sub> · Y<sub>X/O</sub> · 32 / (1000 · µ). Vergleiche mit dem Diagramm.</li>
+            <li><b>Drei Wege aus der Limitierung:</b> Rührleistung erhöhen, O₂ anreichern oder µ_set senken. Alle drei helfen. Was kostet jeder Weg in der Praxis? Denk an Energie, Scherstress für die Zellen, Gaskosten und Prozesszeit.</li>
+            <li><b>Großer Batch:</b> Schalte auf „Nur Batch“ und setze S₀ auf 40 g/L. Warum eignet sich ein reiner Batch nicht für hohe Zelldichten?</li>
+          </ol>
+        </details>
+      </div>
+      <details style="border-top:0;padding-top:0">
+        <summary style="font-size:16px">Grenzen des Modells</summary>
+        <p class="foot" style="margin-top:8px">Dies ist ein Lernprojekt, kein validiertes Prozessmodell. Alle kinetischen Parameter sind Literaturschätzungen für <i>E. coli</i> auf Glukose, nicht an einem konkreten Stamm gemessen.</p>
+        <p class="foot">Nicht abgebildet: pO₂-Regelung, Wachstumsbremse und Plasmidverlust nach der Induktion, Erhaltungsstoffwechsel, CO₂-Bilanz und -Hemmung, Temperatur- und pH-Effekte, Schaum und Antischaummittel. Die Acetat-Parameter (Ausbeuten, Verbrauchsrate) sind fest eingestellte Literaturwerte.</p>
+        <p class="foot">Beim Scale-up sind kLa-, Mischzeit- und Wärmekorrelationen Abschätzungen für einen idealisierten Rührkessel; echte Kessel haben mehrere Rührer und Kühlschlangen, und die kLa-Korrelation wird oberhalb weniger Kubikmeter extrapoliert. Das Zwei-Zonen-Modell zeigt Gradienten qualitativ, erklärt die in der Literatur berichteten Ausbeuteverluste aber nicht allein; Zellstress durch wechselnde Bedingungen fehlt. Die Softsensor-Signale sind simuliert, nicht gemessen.</p>
+      </details>
+    </section>
+  </div>
+</div>
+
+<script>
+(function(){
+  // ---------- Parameter ----------
+  // modes: wo der Regler sichtbar ist ("b" Batch, "c" konstant, "e" exponentiell)
+  var DEF = [
+    {g:"Wachstum", id:"mumax", name:"µmax – maximale Wachstumsrate", unit:"h⁻¹", min:0.05, max:2, step:0.01, val:0.6, dec:2,
+     hint:"E. coli: ca. 0,5–0,8 h⁻¹ in Minimalmedium mit Glukose, bis ca. 2 h⁻¹ in Komplexmedium."},
+    {g:"Wachstum", id:"Ks", name:"Ks – Halbsättigungskonstante", unit:"g/L", min:0.001, max:2, log:true, val:0.05, dec:3,
+     hint:"Glukose-Affinität. Kleiner Wert = hohe Affinität. E. coli: nur wenige mg/L (ca. 0,004–0,1 g/L)."},
+    {g:"Wachstum", id:"Yxs", name:"Yx/s – Biomasseausbeute", unit:"g/g", min:0.1, max:0.8, step:0.01, val:0.3, dec:2,
+     hint:"Gramm Zellen pro Gramm Glukose. Laut BPT-Skript für E. coli rund 0,3 g/g, in idealem Minimalmedium bis ca. 0,5 g/g."},
+    {g:"Batch-Start", id:"X0", name:"X₀ – Startbiomasse", unit:"g/L", min:0.01, max:2, log:true, val:0.1, dec:2,
+     hint:"Biotrockenmasse nach dem Animpfen, typisch ca. 0,05–0,2 g/L."},
+    {g:"Batch-Start", id:"S0", name:"S₀ – Glukose im Batch-Medium", unit:"g/L", min:1, max:60, step:0.5, val:10, dec:1,
+     hint:"Laborbatch meist 5–20 g/L. Wenig Batch-Glukose hält den Batch-Anteil an der Gesamtbiomasse klein."},
+    {g:"Batch-Start", id:"V0", name:"V₀ – Startvolumen", unit:"L", min:0.2, max:20000, log:true, val:1, dec:1,
+     hint:"Flüssigkeit zu Beginn. Wird mit den Maßstab-Knöpfen automatisch gesetzt."},
+    {g:"Batch-Start", id:"tEnd", name:"Laufzeit", unit:"h", min:2, max:48, step:0.5, val:24, dec:1,
+     hint:"Simulierte Gesamtdauer der Fermentation."},
+    {g:"Fütterung", id:"SF", name:"S_F – Glukose im Zulauf", unit:"g/L", min:50, max:700, step:10, val:400, dec:0, modes:"ce",
+     hint:"Konzentrierte Feed-Lösung, typisch 200–500 g/L, damit das Volumen nicht zu stark steigt."},
+    {g:"Fütterung", id:"Fc", name:"F – konstanter Zulauf", unit:"mL/(h·L)", min:1, max:200, step:1, val:20, dec:0, modes:"c",
+     hint:"Gleichbleibende Pumpenrate ab Feed-Start, pro Liter Startvolumen. So bleibt das Rezept beim Scale-up gleich."},
+    {g:"Fütterung", id:"mus", name:"µ_set – gewünschte Wachstumsrate", unit:"h⁻¹", min:0.02, max:1.5, step:0.01, val:0.15, dec:2, modes:"e",
+     hint:"Für rekombinante Proteinproduktion meist 0,1–0,25 h⁻¹, also deutlich unter µmax."},
+    {g:"Fütterung", id:"mus2", name:"µ_set nach der Induktion", unit:"h⁻¹", min:0.02, max:1.5, step:0.01, val:0.15, dec:2, modes:"e",
+     hint:"Ab der IPTG-Zugabe wird der Feed darauf umgestellt. Im BPT-Versuch wird von 0,1 auf 0,2 h⁻¹ erhöht."},
+    {g:"Maßstab", id:"Vmax", name:"Reaktorgröße (max. Arbeitsvolumen)", unit:"L", min:0.5, max:40000, log:true, val:2, dec:1,
+     hint:"Bestimmt die Geometrie (Rührkessel, Höhe/Durchmesser 1,5). Ist er voll, stoppt der Feed."},
+    {g:"Maßstab", id:"PV", name:"P/V – Rührleistung pro Volumen", unit:"kW/m³", min:0.2, max:6, step:0.1, val:4, dec:1,
+     hint:"Labor bis ca. 5 kW/m³. In der Produktion meist 1–2 kW/m³, weil Motoren, Strom und Wärme begrenzen."},
+    {g:"Maßstab", id:"vvm", name:"Begasung", unit:"vvm", min:0.1, max:2, step:0.05, val:1, dec:2,
+     hint:"Gasvolumen pro Flüssigkeitsvolumen und Minute. Labor ca. 1 vvm, Produktion eher 0,3–0,7 vvm."},
+    {g:"Maßstab", id:"qex", name:"Austausch Zulaufzone ↔ Rest", unit:"Tankvol. pro Mischzeit", min:0.05, max:2, log:true, val:1, dec:2,
+     hint:"Nur im Zwei-Zonen-Modell. 1 = physikalische Grundannahme. Kleiner = Feed verteilt sich schlechter, z. B. bei Zulauf an der Oberfläche statt am Rührer. Real nur per Scale-down-Versuch oder CFD bestimmbar."},
+        {g:"Sauerstoff", id:"yO2", name:"O₂-Anteil im Zuluftgas", unit:"%", min:21, max:100, step:1, val:21, dec:0,
+     hint:"21 % = Luft. Mit reinem Sauerstoff anreichern erhöht die Sättigung C* und damit die maximale Übertragung."},
+    {g:"Sauerstoff", id:"Yxo", name:"Yx/o – Biomasse pro Sauerstoff", unit:"g/g", min:0.3, max:1.6, step:0.05, val:1, dec:2,
+     hint:"Gramm Zellen pro Gramm O₂. E. coli auf Glukose ca. 0,9–1,3 g/g. Je mehr Glukose veratmet statt eingebaut wird, desto kleiner."},
+    {g:"Acetat", id:"mucrit", name:"µ_krit – Acetat-Schwelle", unit:"h⁻¹", min:0.05, max:2, step:0.01, val:0.35, dec:2,
+     hint:"Ab dieser Wachstumsrate ist die Atmung ausgelastet und der Überschuss wird zu Acetat. K-12-Stämme wie HMS174 ca. 0,2–0,4 h⁻¹, BL21 deutlich höher."},
+    {g:"Acetat", id:"Ki", name:"K_i – Hemmung durch Acetat", unit:"g/L", min:0.5, max:20, step:0.5, val:3, dec:1,
+     hint:"Bei dieser Acetatkonzentration sind Glukose-Aufnahme und Wachstum halbiert. Ab ca. 2–5 g/L wird es für E. coli kritisch."},
+    {g:"GFP-Bildung", id:"tind", name:"IPTG-Zugabe bei", unit:"h", min:0, max:48, step:0.5, val:12, dec:1,
+     hint:"Ab diesem Zeitpunkt wird GFP gebildet. 0 = von Anfang an."},
+    {g:"GFP-Bildung", id:"alpha", name:"α – wachstumsgekoppelt", unit:"mg/g", min:0, max:200, step:1, val:30, dec:0,
+     hint:"mg GFP pro g neu gebildeter Biomasse. Laut Skript entstehen rekombinante Proteine überwiegend wachstumsassoziiert."},
+    {g:"GFP-Bildung", id:"beta", name:"β – nicht wachstumsgekoppelt", unit:"mg/(g·h)", min:0, max:20, step:0.1, val:0, dec:1,
+     hint:"mg GFP pro g Biomasse und Stunde, auch ohne Wachstum."}
+  ];
+  var GNOTE = {
+    "Wachstum":"Die drei Kernparameter der Monod-Kinetik.",
+    "Batch-Start":"Was zu Beginn im Reaktor ist.",
+    "Fütterung":"Der Feed startet automatisch, sobald die Batch-Glukose verbraucht ist.",
+    "Maßstab":"Vom Labor bis zur Produktion. Daraus werden kLa, Kühlleistung und Mischzeit berechnet.",
+    "Sauerstoff":"Bedarf der Zellen (OUR) gegen die maximale Lieferung des Reaktors (OTR). kLa wird aus Rührleistung und Begasung berechnet.",
+    "Acetat":"Overflow-Metabolismus: Was die Atmung nicht schafft, wird zu Acetat. Bei freier Kapazität verbrauchen die Zellen es wieder.",
+    "GFP-Bildung":"Luedeking-Piret-Ansatz für GFP-mut3.1, eingeschaltet durch IPTG."
+  };
+  var MODES=[["b","Nur Batch"],["c","Konstant"],["e","Exponentiell"]];
+  var SCALES=[{name:"Labor 2 L",Vmax:2,PV:4,vvm:1},{name:"Pilot 200 L",Vmax:200,PV:2,vvm:0.8},{name:"Prod. 20 m³",Vmax:20000,PV:1.5,vvm:0.5}];
+  // Voreinstellung nach dem BPT-Ablaufschema: Batch 4 L auf ca. 3 g/L, Feed µ=0,1, dann µ=0,2 mit Teilinduktion
+  var BPT={mumax:0.5,Ks:0.05,Yxs:0.3,X0:0.05,S0:11,V0:4,tEnd:32,SF:400,mus:0.1,mus2:0.2,Vmax:10,PV:4,vvm:1,tind:25,alpha:30,beta:0,yO2:21,Yxo:1,mucrit:0.35,Ki:3};
+  var scaleBtns=[], DEFBY0={};
+  var mode="e";
+  var p = {grad:1}; DEF.forEach(function(d){ p[d.id]=d.val; DEFBY0[d.id]=d; });
+
+  function fmt(v,dec){ return v.toLocaleString("de-AT",{minimumFractionDigits:dec,maximumFractionDigits:dec}); }
+  function toSlider(d,v){ return d.log ? 1000*Math.log(v/d.min)/Math.log(d.max/d.min) : v; }
+  function fromSlider(d,s){
+    if(!d.log) return parseFloat(s);
+    var v = d.min*Math.pow(d.max/d.min, s/1000);
+    var mag = Math.pow(10, Math.floor(Math.log10(v))-1);
+    return Math.round(v/mag)*mag;
+  }
+
+  // ---------- Regler bauen ----------
+  var ctl=document.getElementById("controls"), inputs={}, outs={}, rows={}, groups={}, lastG=null, box=null, segBtns=[];
+  DEF.forEach(function(d){
+    if(d.g!==lastG){
+      box=document.createElement("div"); box.className="group";
+      box.innerHTML='<h2>'+d.g+'</h2><p class="gnote">'+GNOTE[d.g]+'</p>';
+      if(d.g==="Wachstum"){
+        var pb=document.createElement("button"); pb.type="button"; pb.className="btn ghost"; pb.style.width="100%"; pb.style.marginBottom="8px";
+        pb.textContent="Voreinstellung: BPT-Laborversuch";
+        pb.onclick=function(){ mode="e"; p.grad=1; Object.keys(BPT).forEach(function(k){ p[k]=BPT[k]; inputs[k].value=toSlider(DEFBY0[k],BPT[k]); });
+          syncMode(); cur=null; update(); };
+        box.appendChild(pb);
+      }
+      if(d.g==="Maßstab"){
+        var sg=document.createElement("div"); sg.className="seg"; sg.setAttribute("role","group"); sg.setAttribute("aria-label","Maßstab wählen");
+        SCALES.forEach(function(sc){
+          var b=document.createElement("button"); b.type="button"; b.textContent=sc.name;
+          b.onclick=function(){ ["Vmax","PV","vvm"].forEach(function(k){ p[k]=sc[k]; }); p.V0=sc.Vmax/2;
+            ["V0","Vmax","PV","vvm"].forEach(function(k){ inputs[k].value=toSlider(DEFBY0[k],p[k]); }); update(); };
+          sg.appendChild(b); scaleBtns.push({b:b,sc:sc});
+        });
+        box.appendChild(sg);
+        var gb=document.createElement("button"); gb.type="button"; gb.className="btn ghost"; gb.id="gradBtn";
+        gb.style.marginTop="8px"; gb.style.width="100%";
+        gb.onclick=function(){ p.grad=p.grad?0:1; syncGrad(); update(); };
+        box.appendChild(gb);
+      }
+      if(d.g==="Fütterung"){
+        var seg=document.createElement("div"); seg.className="seg"; seg.setAttribute("role","group"); seg.setAttribute("aria-label","Fütterungsart");
+        MODES.forEach(function(m){
+          var b=document.createElement("button"); b.type="button"; b.textContent=m[1]; b.dataset.m=m[0];
+          b.onclick=function(){ mode=m[0]; syncMode(); update(); };
+          seg.appendChild(b); segBtns.push(b);
+        });
+        box.appendChild(seg);
+      }
+      ctl.appendChild(box); groups[d.g]=box; lastG=d.g;
+    }
+    var w=document.createElement("div"); w.className="param";
+    var id="r_"+d.id;
+    w.innerHTML='<div class="prow"><label class="pname" for="'+id+'">'+d.name+'</label><span class="pval"></span></div>'+
+      '<input type="range" id="'+id+'" min="'+(d.log?0:d.min)+'" max="'+(d.log?1000:d.max)+'" step="'+(d.log?1:d.step)+'">'+
+      '<div class="hint">'+d.hint+'</div>';
+    box.appendChild(w);
+    rows[d.id]=w; inputs[d.id]=w.querySelector("input"); outs[d.id]=w.querySelector(".pval");
+    inputs[d.id].value=toSlider(d,d.val);
+    inputs[d.id].addEventListener("input",function(){ p[d.id]=fromSlider(d,this.value); update(); });
+  });
+  function syncGrad(){ var b=document.getElementById("gradBtn"); if(!b) return;
+    b.setAttribute("aria-pressed",String(!!p.grad)); b.textContent=p.grad?"Zwei-Zonen-Modell: an":"Zwei-Zonen-Modell: aus (ideal durchmischt)";
+    if(rows.qex) rows.qex.hidden=!p.grad; }
+  function syncMode(){
+    segBtns.forEach(function(b){ b.setAttribute("aria-pressed",String(b.dataset.m===mode)); });
+    DEF.forEach(function(d){ rows[d.id].hidden = d.modes ? d.modes.indexOf(mode)<0 : false; });
+    document.getElementById("volPanel").hidden = (mode==="b");
+    syncGrad();
+  }
+  function showVals(){ DEF.forEach(function(d){ outs[d.id].textContent=fmt(p[d.id],d.dec)+" "+d.unit; });
+    scaleBtns.forEach(function(o){ var on=Math.abs(p.Vmax-o.sc.Vmax)<1e-6&&Math.abs(p.PV-o.sc.PV)<1e-6&&Math.abs(p.vvm-o.sc.vvm)<1e-6; o.b.setAttribute("aria-pressed",String(on)); }); }
+
+  // ---------- Simulation ----------
+  // Zustand: X [g/L], S [g/L], A Acetat [g/L], P GFP [mg/L], V [L]; F in L/h; Sauerstoff in mmol/(L·h)
+  // Glukose wird halb-implizit berechnet: Bei kleinem Ks und viel Biomasse reagiert S extrem schnell
+  // ("steifes" System). Ein normales explizites Verfahren würde dann schwingen und negative Werte liefern.
+  // Sauerstoff: Gelöstsauerstoff stellt sich in Sekunden ein, daher quasi-stationär: pO2 = 1 − OUR/OTRmax.
+  // Overflow: Die Atmung schafft höchstens qS_krit = µ_krit/Yxs und nur so viel, wie der Sauerstoff erlaubt.
+  //   Der Rest der aufgenommenen Glukose wird zu Acetat.
+  var CSTAR_AIR=0.21;   // mmol/L bei 37 °C und Luft, 1 bar
+  // Scale-up: Rührkessel mit Höhe/Durchmesser 1,5 (bei vollem Arbeitsvolumen)
+  var U_HEAT=500, DT_COOL=22;   // W/(m²·K) Mantelkühlung; 37 °C Kultur, 15 °C Kühlwasser
+  var HEAT_O2=0.1278;           // W/L pro mmol/(L·h) OUR: 460 kJ Wärme pro mol O2
+  function reactor(q){
+    var Vm=q.Vmax/1000, T=Math.pow(4*Vm/(Math.PI*1.5),1/3), Ac=Math.PI/4*T*T;
+    var vs=q.vvm*Vm/60/Ac;                                       // Gasleerrohrgeschwindigkeit m/s
+    var kLa=3600*0.002*Math.pow(q.PV*1000,0.7)*Math.pow(vs,0.2); // van 't Riet, nicht-koaleszierend
+    var tm=5.9*1.44*Math.pow(q.PV,-1/3)*Math.pow(T,2/3)*2.25;    // Mischzeit grob nach Nienow, schlanker Kessel
+    return {T:T, Ac:Ac, vs:vs, kLa:kLa, tm:tm};
+  }
+  var YAS=0.5;          // g Acetat pro g Glukose im Overflow
+  var OF_YIELD=0.4;     // Biomasseausbeute im Overflow relativ zu Yx/s
+  var YXA=0.3;          // g Biomasse pro g verbrauchtem Acetat
+  var QAC_MAX=0.2;      // g Acetat pro g Biomasse und h, maximaler Verbrauch
+  var KA=0.05;          // g/L, Halbsättigung für Acetatverbrauch
+  var NO2_AC=0.6*1000/32; // mmol O2 pro g verbrauchtem Acetat
+  // Glukose in einer Zone halb-implizit: S1·Ag + k·S1/(Ks+S1) = Rg  (positive Lösung der quadratischen Gleichung)
+  function solveS(Ag,k,Rg,Ks){
+    var B=Ag*Ks+k-Rg;
+    return B>0 ? 2*Rg*Ks/(B+Math.sqrt(B*B+4*Ag*Rg*Ks)) : (-B+Math.sqrt(B*B+4*Ag*Rg*Ks))/(2*Ag);
+  }
+  function simulate(q,md){
+    var dt=0.002, n=Math.round(q.tEnd/dt), every=Math.max(1,Math.round(n/600));
+    var X=q.X0, S=q.S0, Sf=q.S0, Sb=q.S0, Ac=0, P=0, V=q.V0, t=0;
+    var feedOn=false, reAnchored=false, tF=null, XF=0, VF=0, full=false, tFull=null, tDep=null, tO2=null, limH=0, tAc=null;
+    var RX=reactor(q), H=0, otrMax=0, heatMax=0, tHeat=null, tauMin=Infinity, acGrad=0, SfMax=0;
+    var QG=q.vvm*q.Vmax*60/25.4;                   // Gasstrom in mol/h (25,4 L/mol bei 37 °C)
+    // Zwei-Zonen-Modell: Zulaufzone (Anteil phi) und Rest tauschen etwa ein Tankvolumen pro Mischzeit aus
+    var comp=!!q.grad, phi=0.05, qex=q.qex||1;      // Zulaufzone = 5 % des Volumens
+    var kf=3600*qex/(RX.tm*phi), kb=3600*qex/(RX.tm*(1-phi)); // Austauschraten in h⁻¹
+    function geo(){                                // ändert sich mit der Füllhöhe
+      H=(V/1000)/RX.Ac;
+      var pm=1+0.5*1000*9.81*H/1e5;                // mittlerer Druck in bar (Flüssigkeitssäule)
+      // O2 im Gas wird beim Aufsteigen verbraucht: mittlerer Gehalt = Zuluft − ½ · Verbrauch / Gasstrom
+      //   OTR = a · (y_ein − b · OTR)  →  OTR = a · y_ein / (1 + a · b)
+      var aa=RX.kLa*CSTAR_AIR*pm/0.21, bb=0.5*V/(1000*QG);
+      otrMax=aa*(q.yO2/100)/(1+aa*bb);              // mmol/(L·h)
+      var cool=U_HEAT*(Math.PI*RX.T*H+RX.Ac)*DT_COOL/V;   // W/L
+      heatMax=Math.max(0,(cool-q.PV)/HEAT_O2);    // so viel OUR kann die Kühlung abführen
+    }
+    geo();
+    var nO2=1000/(32*q.Yxo);                       // mmol O2 pro g Biomasse aus der Atmung
+    var qScrit=q.mucrit/q.Yxs;                     // g Glukose pro g Biomasse und h, Atmungskapazität
+    var cur={mu:0,our:0,po2:100};
+    var res={t:[],X:[],S:[],Sf:[],A:[],P:[],V:[],F:[],mu:[],our:[],po2:[],otr:[],heat:[],yout:[]};
+    function feed(){
+      if(md==="b"||!feedOn||full) return 0;
+      if(md==="c") return q.Fc/1000*q.V0;
+      var m2 = t>=q.tind ? q.mus2 : q.mus;      // nach der Induktion ggf. andere Wachstumsrate
+      return m2*XF*VF/(q.Yxs*q.SF)*Math.exp(m2*(t-tF));
+    }
+    function push(F){ res.t.push(t); res.X.push(X); res.S.push(S); res.Sf.push(Sf); res.A.push(Ac); res.P.push(P); res.V.push(V); res.F.push(F*1000);
+      res.mu.push(cur.mu); res.our.push(cur.our); res.po2.push(cur.po2); res.otr.push(otrMax); res.heat.push(heatMax);
+      res.yout.push(Math.max(0,q.yO2-100*cur.our*V/(1000*QG))); }
+    // Stoffwechsel: jede Zone für sich (Monod, Atmung bis zur Kapazität, Rest Overflow), dann nach Volumen gewichtet
+    function step(zones,inhib){
+      var qSmax=q.mumax/q.Yxs*inhib, qSO2=otrMax/(X*nO2*q.Yxs);   // max. veratmbare Glukose laut Sauerstoff
+      var qS=0,qSox=0,qSof=0,spare=0,want=0,lim=0,qSofFeed=0;
+      zones.forEach(function(z,i){
+        var qz=qSmax*z.S/(q.Ks+z.S), ox=Math.min(qz,qScrit,qSO2);
+        qS+=z.w*qz; qSox+=z.w*ox; qSof+=z.w*(qz-ox); spare+=z.w*Math.max(0,1-ox/qScrit);
+        want+=z.w*Math.min(qz,qScrit); if(qSO2<Math.min(qz,qScrit)) lim+=z.w;
+        if(i===0 && zones.length>1) qSofFeed=z.w*(qz-Math.min(qz,qScrit));     // Overflow nur wegen Glukose-Stoß
+      });
+      var o2used=q.Yxs*qSox*nO2*X, o2spare=Math.max(0,otrMax-o2used);
+      var qAcWish=QAC_MAX*Ac/(KA+Ac)*spare;
+      var qAc=Math.min(qAcWish, o2spare/(X*NO2_AC));
+      var mu=q.Yxs*qSox + OF_YIELD*q.Yxs*qSof + YXA*qAc;
+      var demand=(q.Yxs*want*nO2 + qAcWish*NO2_AC)*X, o2lim=lim>0.5;
+      return {qS:qS, qSofFeed:qSofFeed, mu:mu, qA:YAS*qSof-qAc, our:o2used+qAc*NO2_AC*X, po2:(o2lim||demand>otrMax)?0:100*(1-demand/otrMax), o2lim:o2lim};
+    }
+    function zonesNow(){ return comp ? [{w:phi,S:Sf},{w:1-phi,S:Sb}] : [{w:1,S:S}]; }
+    var c0=step(zonesNow(),1);
+    cur.mu=c0.mu; cur.our=c0.our; cur.po2=c0.po2;
+    push(0);
+    for(var i=1;i<=n;i++){
+      if(tDep===null && S<=0.01*q.S0) tDep=t;
+      if(!feedOn && md!=="b" && tDep!==null){ feedOn=true; tF=t; XF=X; VF=V; }
+      if(feedOn && !reAnchored && t>=q.tind){ reAnchored=true; tF=t; XF=X; VF=V; }   // Feed auf µ_set2 umstellen
+      if(!full && feedOn && V>=q.Vmax){ full=true; tFull=t; }
+      geo();
+      var F=feed(), Dd=dt*F/V, G=1+Dd;
+      var inhib=1/(1+Ac/q.Ki);
+      var k=dt*q.mumax/q.Yxs*inhib*X;               // Aufnahmekapazität in diesem Schritt (g/L)
+      if(!comp || (F===0 && Math.abs(Sf-Sb)<1e-9)){   // ohne Feed sind beide Zonen gleich: schneller Weg
+        S=solveS(G,k,S+Dd*q.SF,q.Ks); Sf=S; Sb=S;
+      } else {
+        // Zulaufzone bekommt den ganzen Feed. Für ein gegebenes Sf folgt Sb direkt; Sf selbst per Regula falsi.
+        var Sf0=Sf, Sb0=Sb, feedIn=Dd*q.SF/phi, Ab=G+dt*kb, Af=G+dt*kf;
+        var sbOf=function(x){ return solveS(Ab,k,Sb0+dt*kb*x,q.Ks); };
+        var fz=function(x){ return x*Af + k*x/(q.Ks+x) - Sf0 - feedIn - dt*kf*sbOf(x); };
+        var lo=0, hi=Sf0+feedIn+dt*kf*Sb0+1, flo=fz(lo), fhi=fz(hi), side=0, x=0, tol=1e-10*(1+Sf0+feedIn);
+        for(var it=0; it<40; it++){
+          x=(lo*fhi-hi*flo)/(fhi-flo); var fx=fz(x);
+          if(Math.abs(fx)<tol || hi-lo<1e-12*(1+hi)) break;
+          if(fx*fhi>0){ hi=x; fhi=fx; if(side===-1) flo/=2; side=-1; } else { lo=x; flo=fx; if(side===1) fhi/=2; side=1; }
+        }
+        Sf=Math.max(0,x); Sb=sbOf(Sf); S=phi*Sf+(1-phi)*Sb;
+        if(feedOn) SfMax=Math.max(SfMax,Sf);
+      }
+      var st=step(zonesNow(),inhib);
+      if(st.o2lim){ if(tO2===null) tO2=t; limH+=dt; }
+      cur.mu=st.mu; cur.our=st.our; cur.po2=st.po2;
+      if(tHeat===null && st.our>heatMax) tHeat=t;
+      acGrad+=YAS*st.qSofFeed*X*V*dt;            // g Acetat aus Glukose-Stößen in der Zulaufzone
+      if(feedOn && t>tF+0.5 && st.qS>0) tauMin=Math.min(tauMin, S/(st.qS*X)*3600);   // Sekunden bis Glukose verbraucht
+      var qp = t>=q.tind ? (q.alpha*st.mu+q.beta*inhib) : 0;
+      var Xn = X + dt*st.mu*X;                  // Wachstum
+      P  = (P + dt*qp*X)/G;                     // GFP-Bildung, dann Verdünnung
+      Ac = Math.max(0,(Ac + dt*st.qA*X)/G);     // Acetat: Bildung minus Verbrauch, dann Verdünnung
+      X  = Xn/G;                                // Verdünnung durch Zulauf
+      V += F*dt; t=i*dt;
+      if(tAc===null && Ac>0.5) tAc=t;
+      if(i%every===0||i===n) push(F);
+    }
+    res.tDep=tDep; res.tF=tF; res.tFull=tFull; res.tO2=tO2; res.limH=limH; res.tAc=tAc;
+    res.R=RX; res.Hend=H; res.tHeat=tHeat; res.tauMin=tauMin; res.acGrad=acGrad; res.SfMax=SfMax; res.comp=comp;
+    res.mode=md; res.q=Object.assign({},q);
+    return res;
+  }
+
+  // ---------- Zeichnen ----------
+  function css(n){ return getComputedStyle(document.documentElement).getPropertyValue(n).trim(); }
+  function niceMax(v){ if(!(v>0)) return 1; var m=Math.pow(10,Math.floor(Math.log10(v))), f=v/m;
+    return (f<=1?1:f<=2?2:f<=2.5?2.5:f<=5?5:10)*m; }
+  function ticks(max){ var n=5, st=max/n, out=[]; for(var i=0;i<=n;i++) out.push(st*i); return out; }
+  function tickLbl(v){ var a=Math.abs(v); return fmt(v, a===0?0:a<0.1?3:a<1?2:a<10?1:0); }
+  function setupCanvas(c){
+    var dpr=window.devicePixelRatio||1, r=c.getBoundingClientRect();
+    c.width=Math.round(r.width*dpr); c.height=Math.round(r.height*dpr);
+    var ctx=c.getContext("2d"); ctx.setTransform(dpr,0,0,dpr,0,0);
+    return {ctx:ctx,w:r.width,h:r.height};
+  }
+  function plot(c,o){
+    var S=setupCanvas(c), ctx=S.ctx, W=S.w, H=S.h;
+    if(W===0) return;
+    var m={l:48,r:o.right?52:14,t:18,b:30}, pw=W-m.l-m.r, ph=H-m.t-m.b;
+    ctx.clearRect(0,0,W,H);
+    ctx.font='12px "Atkinson Hyperlegible",system-ui,sans-serif';
+    var ink=css("--ink"), muted=css("--muted"), grid=css("--grid");
+    function xp(t){ return m.l+pw*t/o.xmax; }
+    var L=o.left;
+    function yl(v){
+      if(L.log){ var lv=Math.log10(Math.max(v,L.min)); return m.t+ph*(1-(lv-Math.log10(L.min))/(Math.log10(L.max)-Math.log10(L.min))); }
+      return m.t+ph*(1-v/L.max);
+    }
+    function yr(v){ return m.t+ph*(1-v/o.right.max); }
+    ctx.strokeStyle=grid; ctx.lineWidth=1; ctx.fillStyle=muted; ctx.textAlign="right"; ctx.textBaseline="middle";
+    var lt=[];
+    if(L.log){ for(var e=Math.round(Math.log10(L.min)); e<=Math.round(Math.log10(L.max)); e++) lt.push(Math.pow(10,e)); }
+    else lt=ticks(L.max);
+    lt.forEach(function(v){ var y=yl(v); ctx.beginPath(); ctx.moveTo(m.l,y); ctx.lineTo(m.l+pw,y); ctx.stroke(); ctx.fillText(tickLbl(v),m.l-6,y); });
+    if(o.right){ ctx.textAlign="left"; ticks(o.right.max).forEach(function(v){ ctx.fillText(tickLbl(v),m.l+pw+6,yr(v)); }); }
+    ctx.textAlign="center"; ctx.textBaseline="top";
+    var xs=niceMax(o.xmax/6); for(var t=0;t<=o.xmax+1e-9;t+=xs){ var x=xp(t);
+      ctx.beginPath(); ctx.moveTo(x,m.t); ctx.lineTo(x,m.t+ph); ctx.stroke(); ctx.fillText(tickLbl(t),x,m.t+ph+6); }
+    ctx.textBaseline="bottom"; ctx.textAlign="left"; if(L.label) ctx.fillText(L.label,4,m.t-4);
+    if(o.right){ ctx.textAlign="right"; ctx.fillText(o.right.label,W-4,m.t-4); }
+    // Ereignis-Markierungen (Feed-Start, IPTG)
+    (o.marks||[]).forEach(function(mk){
+      if(mk.t==null||mk.t>o.xmax) return;
+      var x=xp(mk.t); ctx.strokeStyle=muted; ctx.setLineDash([3,4]); ctx.lineWidth=1;
+      ctx.beginPath(); ctx.moveTo(x,m.t); ctx.lineTo(x,m.t+ph); ctx.stroke(); ctx.setLineDash([]);
+      if(mk.label){ ctx.fillStyle=muted; ctx.textAlign="left"; ctx.textBaseline="top"; ctx.fillText(mk.label,x+4,m.t+2+(mk.row||0)*14); }
+    });
+    ctx.save(); ctx.beginPath(); ctx.rect(m.l,m.t-2,pw,ph+4); ctx.clip();
+    (o.bands||[]).forEach(function(b){
+      ctx.fillStyle=b.color; ctx.globalAlpha=.18; ctx.beginPath();
+      for(var i=0;i<b.t.length;i++){ var x=xp(b.t[i]), y=yl(b.hi[i]); if(i) ctx.lineTo(x,y); else ctx.moveTo(x,y); }
+      for(i=b.t.length-1;i>=0;i--) ctx.lineTo(xp(b.t[i]),yl(Math.max(0,b.lo[i])));
+      ctx.closePath(); ctx.fill(); ctx.globalAlpha=1;
+    });
+    o.series.forEach(function(s){
+      ctx.strokeStyle=s.color; ctx.globalAlpha=s.alpha||1; ctx.lineWidth=s.width||2.5; ctx.setLineDash(s.dash||[]);
+      ctx.lineJoin="round"; ctx.beginPath();
+      for(var i=0;i<s.t.length;i++){ var x=xp(s.t[i]), y=s.axis==="r"?yr(s.data[i]):yl(s.data[i]);
+        if(i) ctx.lineTo(x,y); else ctx.moveTo(x,y); }
+      ctx.stroke();
+    });
+    (o.points||[]).forEach(function(pt){
+      ctx.fillStyle=css("--surface"); ctx.strokeStyle=pt.color; ctx.lineWidth=2;
+      for(var i=0;i<pt.t.length;i++){ var v=pt.y[i]; if(!isFinite(v)) continue;
+        if(pt.axis!=="r" && L.log && v<=0) continue;
+        var x=xp(pt.t[i]), y=pt.axis==="r"?yr(v):yl(v);
+        ctx.beginPath(); ctx.arc(x,y,4,0,2*Math.PI); ctx.fill(); ctx.stroke(); }
+    });
+    ctx.restore(); ctx.globalAlpha=1; ctx.setLineDash([]);
+    if(o.cursor!=null && o.cursor<=o.xmax){ var cx=xp(o.cursor); ctx.strokeStyle=ink; ctx.lineWidth=1; ctx.globalAlpha=.5;
+      ctx.beginPath(); ctx.moveTo(cx,m.t); ctx.lineTo(cx,m.t+ph); ctx.stroke(); ctx.globalAlpha=1; }
+    c._geo={m:m,pw:pw,xmax:o.xmax};
+  }
+
+  // ---------- Zustand ----------
+  var vis={X:true,S:true,A:true,P:true}, logX=false, cur=null, res=null, ref=null, meas=null;
+  var SER=[{k:"X",name:"Biomasse X",v:"--x"},{k:"S",name:"Glukose S",v:"--s"},{k:"A",name:"Acetat",v:"--a"},{k:"P",name:"GFP",v:"--p"}];
+  var leg=document.getElementById("legend");
+  SER.forEach(function(s){
+    var b=document.createElement("button"); b.className="chip"; b.setAttribute("aria-pressed","true");
+    b.innerHTML='<span class="dot" style="background:var('+s.v+')"></span>'+s.name;
+    b.onclick=function(){ vis[s.k]=!vis[s.k]; b.setAttribute("aria-pressed",String(vis[s.k])); draw(); };
+    leg.appendChild(b);
+  });
+  function idx(r,t){ var i=Math.round(t/r.t[r.t.length-1]*(r.t.length-1)); return Math.max(0,Math.min(r.t.length-1,i)); }
+  function marks(r){
+    var mk=[];
+    if(r.tF!=null) mk.push({t:r.tF,label:"Feed",row:0});
+    if(r.q.tind<=r.q.tEnd) mk.push({t:r.q.tind,label:"IPTG",row:1});
+    if(r.tFull!=null) mk.push({t:r.tFull,label:"voll",row:2});
+    if(r.tO2!=null) mk.push({t:r.tO2,label:"O₂-Limit",row:3});
+    if(r.tAc!=null) mk.push({t:r.tAc,label:"Acetat",row:4});
+    return mk;
+  }
+
+  function draw(){
+    if(!res) return;
+    var cA=css("--a"), cX=css("--x"), cS=css("--s"), cP=css("--p"), cM=css("--mu"), cV=css("--v"), cF=css("--f");
+    var all=[res].concat(ref?[ref]:[]);
+    var lmax=0, lmin=Infinity, pmax=0, tmax=p.tEnd;
+    all.forEach(function(r){
+      if(vis.X) r.X.forEach(function(v){ lmax=Math.max(lmax,v); lmin=Math.min(lmin,v); });
+      if(vis.S) r.S.forEach(function(v){ lmax=Math.max(lmax,v); });
+      if(vis.A) r.A.forEach(function(v){ lmax=Math.max(lmax,v); });
+      r.P.forEach(function(v){ pmax=Math.max(pmax,v); });
+      tmax=Math.max(tmax,r.t[r.t.length-1]);
+    });
+    if(meas){
+      ["X","S","A"].forEach(function(k){ if(vis[k]) meas[k].forEach(function(v){ if(isFinite(v)){ lmax=Math.max(lmax,v); if(k==="X"&&v>0) lmin=Math.min(lmin,v); } }); });
+      meas.P.forEach(function(v){ if(isFinite(v)) pmax=Math.max(pmax,v); });
+    }
+    var left = logX
+      ? {log:true, min:Math.pow(10,Math.floor(Math.log10(Math.max(lmin===Infinity?0.01:lmin,1e-3)))), max:Math.pow(10,Math.ceil(Math.log10(Math.max(lmax,0.01)))), label:"g/L (log)"}
+      : {max:niceMax(lmax*1.05||1), label:"g/L"};
+    var right = vis.P ? {max:niceMax(pmax*1.05||1), label:"GFP in mg/L"} : null;
+    var series=[];
+    function add(r,dash,alpha,w){
+      if(vis.X) series.push({t:r.t,data:r.X,color:cX,axis:"l",dash:dash,alpha:alpha,width:w});
+      if(vis.S) series.push({t:r.t,data:r.S,color:cS,axis:"l",dash:dash,alpha:alpha,width:w});
+      if(vis.A) series.push({t:r.t,data:r.A,color:cA,axis:"l",dash:dash,alpha:alpha,width:w});
+      if(vis.P) series.push({t:r.t,data:r.P,color:cP,axis:"r",dash:dash,alpha:alpha,width:w});
+    }
+    if(ref) add(ref,[6,5],.55,2);
+    add(res,null,1,2.5);
+    var mk=marks(res);
+    var pts=[];
+    if(meas){
+      if(vis.X) pts.push({t:meas.t,y:meas.X,color:cX,axis:"l"});
+      if(vis.S) pts.push({t:meas.t,y:meas.S,color:cS,axis:"l"});
+      if(vis.A) pts.push({t:meas.t,y:meas.A,color:cA,axis:"l"});
+      if(vis.P) pts.push({t:meas.t,y:meas.P,color:cP,axis:"r"});
+    }
+    plot(document.getElementById("main"),{xmax:tmax,left:left,right:right,series:series,cursor:cur,marks:mk,points:pts});
+
+    var muS=[]; if(ref) muS.push({t:ref.t,data:ref.mu,color:cM,axis:"l",dash:[6,5],alpha:.55,width:2});
+    muS.push({t:res.t,data:res.mu,color:cM,axis:"l"});
+    var muTop=Math.max(p.mumax, ref?ref.q.mumax:0, Math.min(p.mucrit,p.mumax*1.2), mode==="e"?p.mus2:0);
+    if(res.mode==="e" && res.tF!=null){
+      var ti=Math.max(res.tF,Math.min(p.tind,tmax));
+      muS.push({t:[res.tF,ti,ti,tmax],data:[p.mus,p.mus,p.mus2,p.mus2],color:css("--muted"),axis:"l",dash:[2,4],width:1.5});
+    }
+    muS.push({t:[0,tmax],data:[p.mucrit,p.mucrit],color:cA,axis:"l",dash:[8,3,2,3],width:1.5});
+    document.getElementById("muNote").textContent = "strichpunktiert: Acetat-Schwelle µ_krit" + (res.mode==="e" ? ", gepunktet: µ_set" : "");
+    plot(document.getElementById("mu"),{xmax:tmax,left:{max:niceMax(muTop*1.05),label:""},right:null,series:muS,cursor:cur,marks:mk});
+
+    var omax=0; all.forEach(function(r){ r.our.forEach(function(v){omax=Math.max(omax,v);}); r.otr.forEach(function(v){omax=Math.max(omax,v);}); });
+    var hmin=Infinity; res.heat.forEach(function(v){ hmin=Math.min(hmin,v); });
+    var os=[];
+    if(ref){ os.push({t:ref.t,data:ref.our,color:cF,axis:"l",dash:[6,5],alpha:.55,width:2}); os.push({t:ref.t,data:ref.po2,color:cV,axis:"r",dash:[6,5],alpha:.55,width:2}); }
+    os.push({t:res.t,data:res.otr,color:css("--ink"),axis:"l",dash:[7,5],width:1.5});
+    if(hmin<omax*1.5) os.push({t:res.t,data:res.heat,color:cX,axis:"l",dash:[3,4],width:2});
+    os.push({t:res.t,data:res.po2,color:cV,axis:"r"});
+    os.push({t:res.t,data:res.our,color:cF,axis:"l"});
+    plot(document.getElementById("o2"),{xmax:tmax,left:{max:niceMax(omax*1.1),label:"mmol/(L·h)"},right:{max:100,label:"pO₂ %"},series:os,cursor:cur,marks:mk});
+
+    if(res.mode!=="b"){
+      var vmax=0,fmax=0; all.forEach(function(r){ r.V.forEach(function(v){vmax=Math.max(vmax,v);}); r.F.forEach(function(v){fmax=Math.max(fmax,v);}); });
+      var vs=[];
+      if(ref && ref.mode!=="b"){ vs.push({t:ref.t,data:ref.V,color:cV,axis:"l",dash:[6,5],alpha:.55,width:2}); vs.push({t:ref.t,data:ref.F,color:cF,axis:"r",dash:[6,5],alpha:.55,width:2}); }
+      vs.push({t:res.t,data:res.V,color:cV,axis:"l"}); vs.push({t:res.t,data:res.F,color:cF,axis:"r"});
+      plot(document.getElementById("vol"),{xmax:tmax,left:{max:niceMax(Math.max(vmax,p.Vmax)*1.05),label:"L"},right:{max:niceMax(fmax*1.05||1),label:"mL/h"},series:vs,cursor:cur,marks:mk});
+    }
+    drawSoft();
+    readout();
+  }
+
+  function readout(){
+    var el=document.getElementById("readout");
+    if(cur==null){ el.textContent="Tippe ins Diagramm, um Werte abzulesen."; return; }
+    var i=idx(res,Math.min(cur,res.t[res.t.length-1]));
+    var s="t = <b>"+fmt(res.t[i],1)+" h</b>: X = <b>"+fmt(res.X[i],2)+"</b> g/L, S = <b>"+fmt(res.S[i],res.S[i]<0.1?3:2)+
+      "</b> g/L, Acetat = <b>"+fmt(res.A[i],2)+"</b> g/L, GFP = <b>"+fmt(res.P[i],1)+"</b> mg/L, µ = <b>"+fmt(res.mu[i],2)+"</b> h⁻¹, OUR = <b>"+fmt(res.our[i],0)+"</b> mmol/(L·h), pO₂ = <b>"+fmt(res.po2[i],0)+" %</b>";
+    if(res.mode!=="b") s+=", V = <b>"+fmt(res.V[i],2)+"</b> L, F = <b>"+fmt(res.F[i],1)+"</b> mL/h";
+    el.innerHTML=s;
+  }
+
+  function stats(){
+    var n=res.X.length-1, X=res.X[n], V=res.V[n], P=res.P[n];
+    var items=[
+      [fmt(X,2)+" g/L","Biomasse am Ende"],
+      [fmt(X*V,1)+" g","Biomasse gesamt (X · V)"],
+      [fmt(P,0)+" mg/L","GFP-Titer am Ende"],
+      [fmt(P*V,0)+" mg","GFP gesamt"],
+      [X>0?fmt(P/X,1)+" mg/g":"–","GFP pro g Biomasse"],
+      [res.tDep!=null?fmt(res.tDep,1)+" h":"nicht erreicht","Batch-Glukose verbraucht"],
+      [fmt(res.R.T,2)+" m × "+fmt(res.Hend,2)+" m","Kessel: Durchmesser × Füllhöhe am Ende"],
+      [fmt(res.R.kLa,0)+" h⁻¹","kLa (berechnet nach van ’t Riet)"],
+      [fmt(res.otr[res.otr.length-1],0)+" mmol/(L·h)","Max. O₂-Übertragung am Ende"],
+      [fmt(res.R.tm,0)+" s","Mischzeit (grobe Abschätzung)"],
+      [isFinite(res.tauMin)?fmt(res.tauMin,0)+" s":"–","Glukose verbraucht in (Fed-Batch, kürzeste)"],
+      [res.tHeat!=null?"ab "+fmt(res.tHeat,1)+" h":"reicht","Kühlung an der Grenze"],
+      [fmt(Math.min.apply(null,res.yout),1)+" %","O₂ im Abgas (tiefster Wert)"],
+      [p.grad?fmt(res.SfMax,res.SfMax<1?3:1)+" g/L":"aus","Glukose in der Zulaufzone (max., Feed-Phase)"],
+      [p.grad?fmt(res.acGrad/res.V[res.V.length-1],2)+" g/L":"aus","Acetat aus Glukose-Stößen (Summe)"],
+      [fmt(Math.max.apply(null,res.our),0)+" mmol/(L·h)","Höchster O₂-Verbrauch (OUR)"],
+      [res.tO2!=null?fmt(res.limH,1)+" h":"keine","Dauer der O₂-Limitierung"],
+      [fmt(Math.max.apply(null,res.A),2)+" g/L","Höchste Acetatkonzentration"],
+      [fmt(res.A[n],2)+" g/L","Acetat am Ende"]
+    ];
+    if(res.mode!=="b"){
+      items.push([fmt(V,2)+" L","Volumen am Ende"]);
+      items.push([fmt(res.q.SF*(V-res.q.V0),0)+" g","Glukose zugefüttert"]);
+      items.push([fmt(Math.log(2)/(res.mode==="e"?p.mus:p.mumax)*60,0)+" min", res.mode==="e"?"Verdopplungszeit bei µ_set":"Verdopplungszeit bei µmax"]);
+    } else {
+      items.push([fmt(Math.log(2)/p.mumax*60,0)+" min","Verdopplungszeit bei µmax"]);
+    }
+    document.getElementById("stats").innerHTML=items.map(function(a){
+      return '<div class="stat"><div class="v">'+a[0]+'</div><div class="k">'+a[1]+'</div></div>'; }).join("");
+
+    var w=[];
+    if(res.mode!=="b" && res.tF==null) w.push("Die Batch-Glukose wird in der Laufzeit nicht aufgebraucht, deshalb startet der Feed nicht. Verlängere die Laufzeit oder senke S₀.");
+    if(res.mode==="e" && p.mus>=p.mumax*0.95) w.push("µ_set liegt bei oder über µmax. Die Zellen können nicht so schnell wachsen, Glukose sammelt sich an.");
+    else if(res.mode==="e" && Math.max(p.mus,p.mus2)>p.mucrit) w.push("µ_set liegt über der Acetat-Schwelle µ_krit. Die Atmung ist ausgelastet, ein Teil der Glukose wird dauerhaft zu Acetat.");
+    else if(res.mode!=="b" && res.tF!=null){
+      var sMax=0; for(var i=0;i<res.t.length;i++){ if(res.t[i]>res.tF+0.5) sMax=Math.max(sMax,res.S[i]); }
+      if(sMax>1) w.push("Im Fed-Batch steigt die Glukose auf bis zu "+fmt(sMax,1)+" g/L. Die Zellen bekommen mehr, als sie verbrauchen.");
+    }
+    if(res.tFull!=null) w.push("Reaktor ab "+fmt(res.tFull,1)+" h voll, der Feed stoppt.");
+    if(res.tO2!=null){
+      w.push("Ab "+fmt(res.tO2,1)+" h reicht der Sauerstoff nicht mehr. Die Atmung wird gedeckelt, überschüssige Glukose wird zu Acetat. Abhilfe: Rührleistung oder Begasung erhöhen, Zuluft mit O₂ anreichern oder µ_set senken.");
+    } else {
+      var pmin=Math.min.apply(null,res.po2);
+      if(pmin<30) w.push("pO₂ fällt bis auf "+fmt(pmin,0)+" %. Im Labor würde die Regelung jetzt die Rührerdrehzahl erhöhen, um mindestens 20–30 % zu halten.");
+    }
+    if(res.tHeat!=null) w.push("Ab "+fmt(res.tHeat,1)+" h erzeugen Zellen und Rührer mehr Wärme, als der Kühlmantel abführen kann. Im Modell läuft der Prozess weiter, real würde die Temperatur steigen. Abhilfe: µ_set senken, Feed drosseln, Rührleistung reduzieren oder zusätzliche Kühlschlangen.");
+    if(isFinite(res.tauMin) && res.R.tm>res.tauMin) w.push("Durchmischung zu langsam: Die Glukose ist nach "+fmt(res.tauMin,0)+" s verbraucht, das Mischen dauert aber ca. "+fmt(res.R.tm,0)+" s. Es entstehen Gradienten: Zellen an der Zulaufstelle bekommen Glukose-Stöße und bilden zusätzliches Acetat."+(p.grad?" Im Zwei-Zonen-Modell erreicht die Glukose in der Zulaufzone bis zu "+fmt(res.SfMax,res.SfMax<1?3:1)+" g/L, daraus entstehen in Summe "+fmt(res.acGrad/res.V[res.V.length-1],2)+" g/L Acetat, die großteils im Rest des Tanks wieder veratmet werden.":" Das Zwei-Zonen-Modell ist ausgeschaltet, gerechnet wird ideal durchmischt."));
+    var aMax=Math.max.apply(null,res.A);
+    if(aMax>=p.Ki) w.push("Acetat erreicht "+fmt(aMax,1)+" g/L und liegt damit über K_i. Wachstum und GFP-Bildung sind stark gehemmt.");
+    else if(aMax>1) w.push("Acetat steigt auf bis zu "+fmt(aMax,1)+" g/L und bremst Wachstum und GFP-Bildung spürbar.");
+    if(p.tind>p.tEnd) w.push("IPTG kommt erst nach Laufzeitende, es wird kein GFP gebildet.");
+    document.getElementById("warn").textContent=w.join(" ");
+  }
+
+  var raf=null;
+  function update(){
+    showVals();
+    if(raf) cancelAnimationFrame(raf);
+    raf=requestAnimationFrame(function(){ res=simulate(p,mode); soft=softSensor(res); stats(); draw(); });
+  }
+
+  // ---------- Softsensor ----------
+  // Online gemessen: OUR aus dem Abgas (verrauscht, evtl. falsch kalibriert), Zulauf F und Volumen V (Pumpe, Waage).
+  // Schätzung:  dX/dt = Yx/o · OUR · 32/1000 − D · X   (Biomasse wächst proportional zum Sauerstoffverbrauch)
+  // Kalman-Filter: Unsicherheit P wächst mit der Zeit, jede Probe korrigiert nach K = P / (P + R).
+  var SS=[
+    {id:"noise", name:"Rauschen im Abgassignal", unit:"%", min:0, max:20, step:1, val:5, dec:0,
+     hint:"Zufällige Schwankung jedes Messwerts."},
+    {id:"bias", name:"Kalibrierfehler des Analysators", unit:"%", min:-20, max:20, step:1, val:0, dec:0,
+     hint:"Systematischer Fehler: Jeder Messwert ist um diesen Anteil zu hoch oder zu niedrig."},
+    {id:"every", name:"Probe alle", unit:"h", min:0, max:12, step:0.5, val:4, dec:1,
+     hint:"Biotrockenmasse zur Korrektur (±5 % Messfehler). 0 = keine Proben."}
+  ];
+  var ss={}; SS.forEach(function(d){ ss[d.id]=d.val; });
+  var soft=null;
+  (function(){
+    var box=document.getElementById("softCtl");
+    SS.forEach(function(d){
+      var w=document.createElement("div"); w.className="param";
+      w.innerHTML='<div class="prow"><label class="pname" for="ss_'+d.id+'">'+d.name+'</label><span class="pval"></span></div>'+
+        '<input type="range" id="ss_'+d.id+'" min="'+d.min+'" max="'+d.max+'" step="'+d.step+'" value="'+d.val+'"><div class="hint">'+d.hint+'</div>';
+      box.appendChild(w);
+      var out=w.querySelector(".pval"), inp=w.querySelector("input");
+      function show(){ out.textContent=(d.id==="every"&&ss.every===0)?"keine":(d.id==="bias"&&ss.bias>0?"+":"")+fmt(ss[d.id],d.dec)+" "+d.unit; }
+      show();
+      inp.addEventListener("input",function(){ ss[d.id]=parseFloat(this.value); show(); soft=softSensor(res); drawSoft(); });
+      d.reset=function(){ ss[d.id]=d.val; inp.value=d.val; show(); };
+    });
+  })();
+  function softSensor(r){
+    if(!r) return null;
+    var R1=rng(11), R2=rng(23);
+    function g(R){ var u=1-R(), v=R(); return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v); }
+    var yxo=r.q.Yxo, n=r.t.length;
+    var raw=[r.X[0]], kal=[r.X[0]], lo=[], hi=[], ourM=[];
+    var xr=r.X[0], xk=r.X[0], P=Math.pow(0.1*r.X[0],2), next=ss.every>0?ss.every:Infinity;
+    var smpT=[], smpX=[];
+    lo.push(xk-2*Math.sqrt(P)); hi.push(xk+2*Math.sqrt(P)); ourM.push(r.our[0]);
+    for(var i=1;i<n;i++){
+      var dt=r.t[i]-r.t[i-1], D=(r.F[i]/1000)/r.V[i-1];
+      var om=Math.max(0,r.our[i]*(1+ss.bias/100)*(1+ss.noise/100*g(R1)));
+      ourM.push(om);
+      var rate=yxo*om*0.032;                     // g Biomasse pro L und h
+      xr += (rate - D*xr)*dt;
+      xk += (rate - D*xk)*dt;
+      // Unsicherheit wächst mit der Zeit: Modell und Analysator können systematisch danebenliegen
+      P = P*Math.pow(1-D*dt,2) + Math.pow((0.15+ss.noise/200)*rate,2)*dt + 1e-4*dt;
+      if(r.t[i]>=next-1e-9){
+        var xm=r.X[i]*(1+0.05*g(R2)), Rm=Math.pow(0.05*xm,2), K=P/(P+Rm);
+        xk += K*(xm-xk); P=(1-K)*P;
+        smpT.push(r.t[i]); smpX.push(xm); next+=ss.every;
+      }
+      raw.push(xr); kal.push(xk); lo.push(xk-2*Math.sqrt(P)); hi.push(xk+2*Math.sqrt(P));
+    }
+    return {t:r.t, raw:raw, kal:kal, lo:lo, hi:hi, smpT:smpT, smpX:smpX, ourM:ourM};
+  }
+  function drawSoft(){
+    if(!soft||!res) return;
+    var tmax=res.t[res.t.length-1], ymax=0;
+    [res.X,soft.raw,soft.hi].forEach(function(a){ a.forEach(function(v){ ymax=Math.max(ymax,v); }); });
+    plot(document.getElementById("soft"),{xmax:tmax,left:{max:niceMax(ymax*1.05),label:"X in g/L"},right:null,cursor:cur,
+      bands:[{t:soft.t,lo:soft.lo,hi:soft.hi,color:css("--v")}],
+      series:[{t:res.t,data:res.X,color:css("--x"),axis:"l",width:3},
+              {t:soft.t,data:soft.raw,color:css("--f"),axis:"l",dash:[6,5],width:2},
+              {t:soft.t,data:soft.kal,color:css("--v"),axis:"l",width:2}],
+      points:[{t:soft.smpT,y:soft.smpX,color:css("--ink"),axis:"l"}]});
+    var n=res.X.length-1;
+    function err(a){ return (a[n]-res.X[n])/res.X[n]*100; }
+    function maxErr(a){ var m=0; for(var i=0;i<=n;i++){ if(res.X[i]>0.2) m=Math.max(m,Math.abs(a[i]-res.X[i])/res.X[i]*100); } return m; }
+    var er=err(soft.raw), ek=err(soft.kal);
+    document.getElementById("softStats").innerHTML=[
+      [(er>0?"+":"")+fmt(er,1)+" %","Fehler am Ende, nur Abgas"],
+      [(ek>0?"+":"")+fmt(ek,1)+" %","Fehler am Ende, mit Kalman"],
+      [fmt(maxErr(soft.raw),0)+" % / "+fmt(maxErr(soft.kal),0)+" %","Größter Fehler (nur Abgas / Kalman)"]
+    ].map(function(a){ return '<div class="stat"><div class="v">'+a[0]+'</div><div class="k">'+a[1]+'</div></div>'; }).join("");
+  }
+
+  // ---------- Messdaten ----------
+  var KEYS=["X","S","A","P"], KNAME={X:"Biomasse",S:"Glukose",A:"Acetat",P:"GFP"};
+  function num(v){ v=(v||"").trim(); if(v==="") return NaN; return parseFloat(v.replace(",",".")); }
+  function parseData(txt){
+    var lines=txt.split(/\r?\n/).map(function(l){return l.trim();}).filter(function(l){return l.length;});
+    if(!lines.length) return null;
+    var sep = /\t/.test(lines[0]) ? "\t" : (/;/.test(lines[0]) ? ";" : ",");
+    var order=["t","X","S","A","P"], start=0;
+    if(/[a-zA-ZäöüÄÖÜ]/.test(lines[0])){
+      start=1;
+      order=lines[0].split(sep).map(function(h){ h=h.trim().toLowerCase();
+        if(/^(t|zeit|time)/.test(h)) return "t";
+        if(/^(x|bts|btm|biomass|cdw)/.test(h)) return "X";
+        if(/^(s|glu|glc)/.test(h)) return "S";
+        if(/^(a|ac|acetat|acetate)/.test(h)) return "A";
+        if(/^(gfp|p|produkt|product)/.test(h)) return "P";
+        return null; });
+    }
+    var d={t:[],X:[],S:[],A:[],P:[]};
+    for(var i=start;i<lines.length;i++){
+      var c=lines[i].split(sep), row={};
+      order.forEach(function(k,j){ if(k) row[k]=num(c[j]); });
+      if(!isFinite(row.t)) continue;
+      d.t.push(row.t); KEYS.forEach(function(k){ d[k].push(row[k]===undefined?NaN:row[k]); });
+    }
+    if(!d.t.length) return null;
+    d.has=KEYS.filter(function(k){ return d[k].some(isFinite); });
+    return d;
+  }
+  function interp(r,key,t){
+    var T=r.t, n=T.length; if(t<=T[0]) return r[key][0]; if(t>=T[n-1]) return r[key][n-1];
+    var i=Math.min(n-2,Math.floor(t/T[n-1]*(n-1))); while(i>0&&T[i]>t) i--; while(i<n-2&&T[i+1]<t) i++;
+    var f=(t-T[i])/(T[i+1]-T[i]); return r[key][i]+f*(r[key][i+1]-r[key][i]);
+  }
+  function sse(r,d){
+    var tot=0;
+    d.has.forEach(function(k){
+      var sc=0; d[k].forEach(function(v){ if(isFinite(v)) sc=Math.max(sc,Math.abs(v)); }); sc=Math.max(sc,1e-3);
+      for(var i=0;i<d.t.length;i++){ var v=d[k][i]; if(!isFinite(v)) continue; var e=(interp(r,k,d.t[i])-v)/sc; tot+=e*e; }
+    });
+    return tot;
+  }
+  function r2(r,d,k){
+    var vals=[],m=0; for(var i=0;i<d.t.length;i++) if(isFinite(d[k][i])) vals.push([d.t[i],d[k][i]]);
+    vals.forEach(function(a){m+=a[1];}); m/=vals.length;
+    var ssr=0,sst=0; vals.forEach(function(a){ var e=interp(r,k,a[0])-a[1]; ssr+=e*e; sst+=(a[1]-m)*(a[1]-m); });
+    return sst>0?1-ssr/sst:NaN;
+  }
+  // Beispieldaten: mit versteckten "wahren" Parametern simuliert, plus Messrauschen
+  var TRUE={mumax:0.5, Yxs:0.35, mucrit:0.28, alpha:25};
+  var synthetic=false;
+  function rng(seed){ return function(){ seed|=0; seed=seed+0x6D2B79F5|0; var t=Math.imul(seed^seed>>>15,1|seed);
+    t=t+Math.imul(t^t>>>7,61|t)^t; return ((t^t>>>14)>>>0)/4294967296; }; }
+  function makeExample(){
+    var base={}; DEF.forEach(function(d){ base[d.id]=d.val; });
+    var r=simulate(Object.assign({},base,TRUE),"e"), R=rng(7);
+    function gauss(){ var u=1-R(), v=R(); return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v); }
+    var times=[0,1,2,3,4,5,6,7,8,9,11,13,15,17,19,21,23];
+    var lines=["t;X;S;Acetat;GFP"];
+    function f(v,dec){ return v.toFixed(dec).replace(".",","); }
+    times.forEach(function(t){
+      var X=Math.max(0,interp(r,"X",t)*(1+0.05*gauss()));
+      var S=Math.max(0,interp(r,"S",t)*(1+0.05*gauss())+0.03*gauss());
+      var A=Math.max(0,interp(r,"A",t)*(1+0.06*gauss())+0.03*gauss());
+      var P=interp(r,"P",t); P = t<base.tind ? "" : f(Math.max(0,P*(1+0.08*gauss())),0);
+      lines.push([t,f(X,2),f(S,2),f(A,2),P].join(";"));
+    });
+    return lines.join("\n");
+  }
+
+  var FITP=[{id:"mumax",on:true},{id:"Yxs",on:true},{id:"mucrit",on:true},{id:"alpha",on:true},{id:"Ks",on:false},{id:"Ki",on:false}];
+  var DEFBY={}; DEF.forEach(function(d){ DEFBY[d.id]=d; });
+  var fc=document.getElementById("fitChecks");
+  FITP.forEach(function(fp){
+    var d=DEFBY[fp.id], l=document.createElement("label");
+    l.innerHTML='<input type="checkbox"'+(fp.on?' checked':'')+'> '+d.name.split(" – ")[0];
+    l.querySelector("input").onchange=function(){ fp.on=this.checked; };
+    fc.appendChild(l);
+  });
+  function showData(){
+    var st=document.getElementById("dataStatus");
+    if(!meas){ st.textContent=""; document.getElementById("fitBox").hidden=true; draw(); return; }
+    st.textContent=meas.t.length+" Messzeitpunkte eingelesen ("+meas.has.map(function(k){return KNAME[k];}).join(", ")+"). Die Punkte erscheinen im Hauptdiagramm."+(synthetic?" Hinweis: künstlich erzeugte Beispieldaten, keine echte Messung.":"");
+    document.getElementById("fitBox").hidden=false;
+    document.getElementById("trueBtn").hidden=!synthetic;
+    draw();
+  }
+  document.getElementById("exBtn").onclick=function(){
+    DEF.forEach(function(d){ p[d.id]=d.val; inputs[d.id].value=toSlider(d,d.val); }); mode="e"; syncMode();
+    document.getElementById("dataIn").value=makeExample(); synthetic=true;
+    meas=parseData(document.getElementById("dataIn").value);
+    document.getElementById("fitTable").innerHTML=""; document.getElementById("fitStatus").textContent="";
+    update(); showData();
+  };
+  document.getElementById("parseBtn").onclick=function(){
+    meas=parseData(document.getElementById("dataIn").value);
+    if(!meas){ document.getElementById("dataStatus").textContent="Keine gültigen Zeilen gefunden. Die erste Spalte muss die Zeit in Stunden sein."; document.getElementById("fitBox").hidden=true; return; }
+    showData();
+  };
+  document.getElementById("dataIn").addEventListener("input",function(){ synthetic=false; });
+  document.getElementById("clearData").onclick=function(){ meas=null; synthetic=false; document.getElementById("dataIn").value="";
+    document.getElementById("fitTable").innerHTML=""; document.getElementById("fitStatus").textContent=""; showData(); };
+
+  // Nelder-Mead: sucht das Minimum der Fehlersumme
+  async function nelderMead(fn,x0,step,maxEval,onProgress){
+    var n=x0.length, pts=[x0.slice()], evals=0;
+    for(var i=0;i<n;i++){ var x=x0.slice(); x[i]+=step[i]; pts.push(x); }
+    var vals=[]; for(i=0;i<=n;i++){ vals.push(fn(pts[i])); evals++; }
+    function add(a,b,f){ return a.map(function(v,i){ return v+f*(b[i]-v); }); }
+    while(evals<maxEval){
+      var ord=vals.map(function(v,i){return i;}).sort(function(a,b){return vals[a]-vals[b];});
+      pts=ord.map(function(i){return pts[i];}); vals=ord.map(function(i){return vals[i];});
+      if(Math.abs(vals[n]-vals[0])<1e-9*(1+Math.abs(vals[0]))) break;
+      var c=pts[0].map(function(_,j){ var s=0; for(var k=0;k<n;k++) s+=pts[k][j]; return s/n; });
+      var xr=add(c,pts[n],-1), fr=fn(xr); evals++;
+      if(fr<vals[0]){ var xe=add(c,pts[n],-2), fe=fn(xe); evals++; if(fe<fr){pts[n]=xe;vals[n]=fe;} else {pts[n]=xr;vals[n]=fr;} }
+      else if(fr<vals[n-1]){ pts[n]=xr; vals[n]=fr; }
+      else { var xc=add(c,pts[n],0.5), fcv=fn(xc); evals++;
+        if(fcv<vals[n]){ pts[n]=xc; vals[n]=fcv; }
+        else { for(i=1;i<=n;i++){ pts[i]=add(pts[0],pts[i],0.5); vals[i]=fn(pts[i]); evals++; } } }
+      if(evals%10<3){ onProgress(evals,vals[0]); await new Promise(function(r){setTimeout(r,0);}); }
+    }
+    var best=0; for(i=1;i<=n;i++) if(vals[i]<vals[best]) best=i;
+    return {x:pts[best], f:vals[best], evals:evals};
+  }
+  var fitting=false;
+  document.getElementById("fitBtn").onclick=async function(){
+    if(fitting||!meas) return;
+    var ids=FITP.filter(function(f){return f.on;}).map(function(f){return f.id;});
+    if(!ids.length){ document.getElementById("fitStatus").textContent="Wähle mindestens einen Parameter aus."; return; }
+    fitting=true; var btn=this; btn.disabled=true;
+    var start={}; ids.forEach(function(id){ start[id]=p[id]; });
+    var md=mode;
+    // Suche in log-Koordinaten: x = ln(Wert), so bleiben alle Werte positiv
+    function toQ(x){ var q=Object.assign({},p); ids.forEach(function(id,i){ var d=DEFBY[id]; q[id]=Math.min(d.max,Math.max(d.min,Math.exp(x[i]))); }); return q; }
+    function fn(x){ return sse(simulate(toQ(x),md),meas); }
+    var x0=ids.map(function(id){ return Math.log(p[id]); });
+    var f0=fn(x0);
+    var st=document.getElementById("fitStatus");
+    var out=await nelderMead(fn,x0,ids.map(function(){return 0.25;}),120*ids.length+100,function(e,f){
+      st.textContent="Rechne … "+e+" Simulationen, Fehler "+fmt(f,4)+". Das dauert ein paar Sekunden."; });
+    var before=res;
+    var q=toQ(out.x);
+    ids.forEach(function(id){ var d=DEFBY[id]; p[id]=q[id]; inputs[id].value=toSlider(d,q[id]); });
+    ref=before; document.getElementById("refClear").hidden=false; document.getElementById("refBtn").textContent="Neue Referenz merken";
+    update();
+    var fitted=simulate(p,md);
+    st.textContent="Fertig nach "+out.evals+" Simulationen. Fehlersumme von "+fmt(f0,3)+" auf "+fmt(out.f,4)+" gesenkt. Die Werte wurden in die Regler übernommen, die alte Kurve ist gestrichelt als Referenz zu sehen.";
+    var html='<table><thead><tr><th>Parameter</th><th>vorher</th><th>angepasst</th><th class="tcol" hidden>wahr</th></tr></thead><tbody>';
+    ids.forEach(function(id){ var d=DEFBY[id];
+      html+='<tr><td>'+d.name.split(" – ")[0]+'</td><td>'+fmt(start[id],d.dec)+'</td><td><b>'+fmt(p[id],d.dec)+'</b></td><td class="tcol" hidden>'+(TRUE[id]!==undefined?fmt(TRUE[id],d.dec):fmt(DEFBY[id].val,d.dec))+'</td></tr>'; });
+    html+='</tbody></table><p class="status">Bestimmtheitsmaß R² (1 = perfekt): '+meas.has.map(function(k){ return KNAME[k]+" "+fmt(r2(fitted,meas,k),3); }).join(", ")+'</p>';
+    document.getElementById("fitTable").innerHTML=html;
+    fitting=false; btn.disabled=false;
+  };
+  document.getElementById("trueBtn").onclick=function(){
+    document.querySelectorAll(".tcol").forEach(function(el){ el.hidden=false; });
+    if(!document.querySelector(".tcol")) document.getElementById("fitStatus").textContent="Erst anpassen, dann vergleichen. Die Beispieldaten wurden erzeugt mit: "+
+      Object.keys(TRUE).map(function(id){ return DEFBY[id].name.split(" – ")[0]+" "+fmt(TRUE[id],DEFBY[id].dec); }).join(", ")+".";
+  };
+
+  // ---------- Interaktion ----------
+  function pointer(e){
+    var c=e.currentTarget, g=c._geo; if(!g) return;
+    var r=c.getBoundingClientRect(), x=e.clientX-r.left;
+    var t=(x-g.m.l)/g.pw*g.xmax; if(t<0||t>g.xmax) return;
+    cur=t; draw();
+  }
+  ["main","mu","o2","soft","vol"].forEach(function(id){ var c=document.getElementById(id);
+    c.addEventListener("pointerdown",pointer); c.addEventListener("pointermove",function(e){ if(e.pointerType==="mouse"||e.buttons) pointer(e); });
+  });
+  document.getElementById("refBtn").onclick=function(){ ref=res; document.getElementById("refClear").hidden=false; this.textContent="Neue Referenz merken"; draw(); };
+  document.getElementById("refClear").onclick=function(){ ref=null; this.hidden=true; document.getElementById("refBtn").textContent="Als Referenz merken"; draw(); };
+  document.getElementById("logBtn").onclick=function(){ logX=!logX; this.setAttribute("aria-pressed",String(logX));
+    this.textContent=logX?"Lineare Achse":"Log-Achse"; draw(); };
+  document.getElementById("resetBtn").onclick=function(){ SS.forEach(function(d){ d.reset(); }); DEF.forEach(function(d){ p[d.id]=d.val; inputs[d.id].value=toSlider(d,d.val); }); p.grad=1; mode="e"; syncMode(); cur=null; update(); };
+  window.addEventListener("resize",draw);
+  if(window.matchMedia) matchMedia("(prefers-color-scheme: dark)").addEventListener("change",draw);
+  new MutationObserver(draw).observe(document.documentElement,{attributes:true,attributeFilter:["data-theme"]});
+  if(document.fonts && document.fonts.ready) document.fonts.ready.then(draw);
+
+  syncMode();
+  update();
+})();
+</script>
+</body>
+</html>
